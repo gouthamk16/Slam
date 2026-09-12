@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="352" viewBox="0 0 760 352" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <title>KITTI 00 absolute trajectory error: ORB-SLAM2 1.30 m, this system 1.73 m, DPV-SLAM++ 8.30 m, DROID-SLAM 92.1 m, DPV-SLAM 112.8 m, DPVO 113.21 m</title>
+  <rect x="0.5" y="0.5" width="759" height="351" rx="8" fill="#fcfcfb" stroke="rgba(11,11,11,0.10)"/>
+  <text x="24" y="34" font-size="15" font-weight="600" fill="#0b0b0b">KITTI 00 trajectory error, against published systems</text>
+  <text x="24" y="54" font-size="12" fill="#52514e">lower is better · every number but ours comes from that system's own paper</text>
+
+  <g font-size="11" fill="#52514e">
+    <rect x="24" y="64" width="10" height="10" rx="2" fill="#2a78d6"/>
+    <text x="40" y="73">stereo</text>
+    <rect x="92" y="64" width="10" height="10" rx="2" fill="#eb6834"/>
+    <text x="108" y="73">monocular — no metric scale, ATE after alignment</text>
+  </g>
+
+  <g stroke="#e1e0d9">
+    <line x1="389" y1="86" x2="389" y2="290"/>
+    <line x1="487" y1="86" x2="487" y2="290"/>
+    <line x1="576" y1="86" x2="576" y2="290"/>
+    <line x1="674" y1="86" x2="674" y2="290"/>
+  </g>
+  <line x1="300" y1="86" x2="300" y2="290" stroke="#c3c2b7"/>
+
+  <g font-size="12" fill="#0b0b0b" text-anchor="end">
+    <text x="288" y="108">ORB-SLAM2 — C++</text>
+    <text x="288" y="142" font-weight="600">this system — NumPy</text>
+    <text x="288" y="176">DPV-SLAM++</text>
+    <text x="288" y="210">DROID-SLAM</text>
+    <text x="288" y="244">DPV-SLAM</text>
+    <text x="288" y="278">DPVO</text>
+  </g>
+
+  <rect x="300" y="92" width="21" height="22" rx="4" fill="#86b6ef"/>
+  <rect x="300" y="126" width="45" height="22" rx="4" fill="#2a78d6"/>
+  <rect x="300" y="160" width="172" height="22" rx="4" fill="#eb6834"/>
+  <rect x="300" y="194" width="367" height="22" rx="4" fill="#eb6834"/>
+  <rect x="300" y="228" width="384" height="22" rx="4" fill="#eb6834"/>
+  <rect x="300" y="262" width="384" height="22" rx="4" fill="#eb6834"/>
+
+  <g font-size="12" font-weight="600" fill="#0b0b0b" font-variant-numeric="tabular-nums">
+    <text x="329" y="108">1.30 m</text>
+    <text x="353" y="142">1.73 m</text>
+    <text x="480" y="176">8.30 m</text>
+    <text x="675" y="210">92.1 m</text>
+    <text x="692" y="244">112.8 m</text>
+    <text x="692" y="278">113.2 m</text>
+  </g>
+
+  <g font-size="11" fill="#898781" text-anchor="middle" font-variant-numeric="tabular-nums">
+    <text x="300" y="306">1</text>
+    <text x="389" y="306">3</text>
+    <text x="487" y="306">10</text>
+    <text x="576" y="306">30</text>
+    <text x="674" y="306">100</text>
+  </g>
+  <text x="300" y="326" font-size="11" fill="#898781">ATE RMSE, metres — log scale</text>
+  <text x="24" y="344" font-size="10" fill="#898781">sources: ORB-SLAM2, TRO 2017 · DPVO / DPV-SLAM / DPV-SLAM++ / DROID-SLAM, Deep Patch Visual SLAM, ECCV 2024, Table 2b</text>
+</svg>

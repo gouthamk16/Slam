@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="336" viewBox="0 0 760 336" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <title>Per-keyframe mapping cost: local BA 252 ms, fuse 67 ms, insert 53 ms, triangulate 43 ms, cull keyframes 12 ms, cull points 3 ms</title>
+  <rect x="0.5" y="0.5" width="759" height="335" rx="8" fill="#fcfcfb" stroke="rgba(11,11,11,0.10)"/>
+  <text x="24" y="34" font-size="15" font-weight="600" fill="#0b0b0b">A keyframe costs ~430 ms, and bundle adjustment is most of it</text>
+  <text x="24" y="54" font-size="12" fill="#52514e">local mapping, median over 400 frames / 128 keyframes · runs on its own thread</text>
+
+  <g stroke="#e1e0d9">
+    <line x1="400" y1="80" x2="400" y2="286"/>
+    <line x1="500" y1="80" x2="500" y2="286"/>
+    <line x1="600" y1="80" x2="600" y2="286"/>
+    <line x1="700" y1="80" x2="700" y2="286"/>
+  </g>
+  <line x1="300" y1="80" x2="300" y2="286" stroke="#c3c2b7"/>
+
+  <g font-size="13" fill="#0b0b0b" text-anchor="end">
+    <text x="288" y="102">local bundle adjustment</text>
+    <text x="288" y="136">fuse duplicate points</text>
+    <text x="288" y="170">insert keyframe</text>
+    <text x="288" y="204">triangulate new points</text>
+    <text x="288" y="238">cull keyframes</text>
+    <text x="288" y="272">cull recent points</text>
+  </g>
+
+  <g fill="#2a78d6">
+    <rect x="300" y="86" width="360" height="22" rx="4"/>
+    <rect x="300" y="120" width="96" height="22" rx="4"/>
+    <rect x="300" y="154" width="76" height="22" rx="4"/>
+    <rect x="300" y="188" width="61" height="22" rx="4"/>
+    <rect x="300" y="222" width="17" height="22" rx="4"/>
+    <rect x="300" y="256" width="4" height="22" rx="2"/>
+  </g>
+
+  <g font-size="12" font-weight="600" fill="#0b0b0b" font-variant-numeric="tabular-nums">
+    <text x="668" y="102">252 ms</text>
+    <text x="404" y="136">67 ms</text>
+    <text x="384" y="170">53 ms</text>
+    <text x="369" y="204">43 ms</text>
+    <text x="325" y="238">12 ms</text>
+    <text x="312" y="272">3 ms</text>
+  </g>
+
+  <g font-size="11" fill="#898781" text-anchor="middle" font-variant-numeric="tabular-nums">
+    <text x="300" y="302">0</text>
+    <text x="400" y="302">70</text>
+    <text x="500" y="302">140</text>
+    <text x="600" y="302">210</text>
+    <text x="700" y="302">280</text>
+  </g>
+  <text x="300" y="322" font-size="11" fill="#898781">milliseconds per keyframe</text>
+</svg>

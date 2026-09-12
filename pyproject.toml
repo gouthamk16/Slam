@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slam"
+version = "0.2.0"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=2.0",
+  "opencv-python-headless>=4.8",
+  "scipy>=1.13",
+  "rerun-sdk>=0.37",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "remotezip"]
+
+[project.scripts]
+slam-kitti = "slam.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
