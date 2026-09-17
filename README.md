@@ -1,46 +1,89 @@
 # slam2.0
 
-![The Rerun viewer: estimated trajectory in green over ground truth in grey, keyframes and map points, the left camera with tracked features, and tracked-feature count over time](docs/rerun.png)
+![EuRoC V1_02 in Rerun: our trajectory in green on top of ground truth in grey, keyframes in blue, the map of the room, the live camera with tracked features, and tracked-feature count over time](docs/euroc_v102.png)
 
-Stereo visual SLAM on KITTI, built like ORB-SLAM2/3: tracking, local mapping and loop
-closing on three threads, but the estimator is NumPy, not C++.
+Stereo visual SLAM built like ORB-SLAM2/3: tracking, local mapping and loop closing on three
+threads. The difference is that the estimator is NumPy, not C++. It runs on drone footage (EuRoC)
+and on a car (KITTI).
 
-**1.73 m ATE over 3.7 km of KITTI 00. 0 lost frames. 4 loop closures, all at real revisits.
-6 fps on a laptop.** ORB-SLAM2's paper reports 1.30 m on the same sequence.
+**EuRoC: 2 to 17 cm average error on 10 of 11 drone flights, 0 lost frames on 9 of them. KITTI 00:
+1.74 m over 3.7 km.**
 
-## What's actually different here
+## Drone flights (EuRoC MAV)
 
-Python SLAM usually means a thin wrapper: g2o or Ceres does bundle adjustment, DBoW2 does
-place recognition, and the Python is glue. Here the only C++ in the loop is OpenCV's ORB
-extractor. Everything after it is array math you can read and step through:
+EuRoC is 11 flights of a micro aerial vehicle through a machine hall and two Vicon rooms, with
+millimetre ground truth from a laser tracker or motion capture. It is the standard benchmark for
+drone SLAM, and it is much harder than driving: fast rotations, motion blur, dark corners and
+textureless walls.
 
-- **Our own bundle adjustment.** Sparse Levenberg–Marquardt with the Schur complement, in
-  ~200 lines. Residuals and Jacobians are batched over every observation at once; the 3×3
-  point blocks are inverted as one batched call; the reduced camera system goes to a sparse
-  solve. No g2o, no Ceres, no gtsam.
-- **Matching without per-keypoint loops.** Hamming distance is a popcount lookup table over
-  whole descriptor arrays. Candidate pairs come from sorted ragged ranges (search windows,
-  epipolar bands and vocabulary nodes) all reduce to `searchsorted` plus one flat index array.
-- **Stereo the ORB-SLAM2 way, vectorized.** Row-band descriptor match, then SAD subpixel
-  refinement computed for every match simultaneously, grouped by pyramid level.
-- **Real place recognition.** The actual DBoW2 vocabulary (ORBvoc.txt, 1.08 M nodes) parsed
-  into flat arrays; tree descent, TF-IDF and L1 scoring are vectorized. Loops are verified
-  with SE(3) RANSAC and closed with an essential-graph pose graph.
+What it took to run on it:
 
-The payoff is that the math is inspectable. Both bugs that cost us the most were found by
-reading and measuring, not by guessing at a binary:
+- **Our own rectification.** KITTI ships rectified images. EuRoC ships raw images with strong lens
+  distortion and a calibrated but unaligned stereo pair. We undistort and rectify both cameras
+  from the calibration files, and keep track of the rotation this adds so poses still line up with
+  the ground truth.
+- **A test for the data, not just the code.** Before trusting any number, a test checks that the
+  camera motion we see in the images agrees with the ground truth. It already paid off on KITTI,
+  where a mislabeled mirror had spliced two sequences together.
+- **Real-world camera problems.** Some flights drop frames: V2_03 loses every other left image
+  during its fastest part. The motion model used to assume a fixed frame rate and predicted
+  poses 2x off. It now works in seconds, not frames.
+- **A loop closing bug KITTI never hit.** Hovering in one room makes many past views look alike.
+  Candidate groups were being duplicated for every match, grew exponentially and ran out of
+  memory on MH_01. Fixed to match ORB-SLAM2.
 
-- Poses drifted off SO(3). The constant-velocity model composes `T @ invert(T_prev)`, and
-  `invert()` assumes an orthonormal rotation, so roundoff tripled every frame until tracking
-  exploded around frame 40. g2o hides this behind quaternions. Velocity is a twist now.
-- The essential graph must take loop edges *before* strong-covisibility edges. Same keyframe
-  pair, deduplicated, and the drifted measurement was winning, so the pose graph was fighting
-  its own loop correction. ATE 5.23 m → 0.96 m.
+Results, camera only (no IMU yet). Error is ATE RMSE after aligning the trajectory to ground truth.
 
-There's also a test that checks the **dataset** rather than the code: it verifies that image
-motion agrees with the ground-truth poses. It exists because half of our "sequence 00" turned
-out to be sequence 01 from a mislabeled mirror, which cost days of debugging a SLAM system
-that was fine.
+| Flight | Length | Our error | % of path | ORB-SLAM3 stereo | Lost frames |
+|---|---|---|---|---|---|
+| MH_01 easy | 81 m | 3.2 cm | 0.04 % | 2.9 cm | 0 |
+| MH_02 easy | 73 m | 3.1 cm | 0.04 % | 1.9 cm | 0 |
+| MH_03 medium | 131 m | 2.6 cm | 0.02 % | 2.4 cm | 0 |
+| MH_04 difficult | 92 m | 17.2 cm | 0.19 % | 8.5 cm | 0 |
+| MH_05 difficult | 98 m | 6.0 cm | 0.06 % | 5.2 cm | 0 |
+| V1_01 easy | 59 m | **3.5 cm** | 0.06 % | 3.5 cm | 0 |
+| V1_02 medium | 76 m | **2.1 cm** | 0.03 % | 2.5 cm | 0 |
+| V1_03 difficult | 79 m | 8.5 cm | 0.11 % | 6.1 cm | 61 |
+| V2_01 easy | 36 m | **2.9 cm** | 0.08 % | 4.1 cm | 0 |
+| V2_02 medium | 84 m | 4.1 cm | 0.05 % | 2.8 cm | 0 |
+| V2_03 difficult | 87 m | 272 cm | 3.1 % | 52.1 cm | 906 |
+
+We match or beat ORB-SLAM3 on V1_01, V1_02 and V2_01, and stay close on most of the rest. Averaged
+over the first ten flights it is 5.3 cm against their 4.0 cm. Runs at 8 to 14 fps on a laptop.
+
+V2_03 is where we fail. A fast turn blurs the images, features drop from 1200 to 173, and the images
+are sharp again 8 frames later, but tracking never comes back because there is no relocalization
+yet. This is exactly the case an IMU fixes, which is what comes next
+([`docs/vio-roadmap.md`](docs/vio-roadmap.md)).
+
+## Driving (KITTI 00)
+
+![The Rerun viewer on KITTI 00: estimated trajectory in green over ground truth in grey](docs/rerun.png)
+
+**1.74 m ATE over 3.7 km, 0.90 % drift, 0 lost frames, loops closed at all 4 real revisits, 6 fps.**
+ORB-SLAM2 reports 1.30 m on the same sequence. Every learned SLAM system that publishes a KITTI 00
+number is further off: DPV-SLAM++ 8.30 m, DROID-SLAM 92.1 m, DPVO 113.2 m (all monocular, which
+explains part of that gap).
+
+![KITTI 00 ATE: ORB-SLAM2 1.30 m, this system 1.73 m, DPV-SLAM++ 8.30 m, DROID-SLAM 92.1 m, DPV-SLAM 112.8 m, DPVO 113.2 m](docs/comparison.svg)
+
+## What's different here
+
+Python SLAM usually means a thin wrapper: g2o or Ceres does bundle adjustment, DBoW2 does place
+recognition, and the Python is glue. Here the only C++ in the loop is OpenCV's ORB extractor.
+Everything after it is array math you can read and step through:
+
+- **Our own bundle adjustment.** Sparse Levenberg-Marquardt with the Schur complement, in about 200
+  lines, batched over every observation at once. No g2o, no Ceres, no gtsam.
+- **Matching without per-keypoint loops.** Hamming distance is a popcount lookup over whole
+  descriptor arrays, and every search window reduces to `searchsorted` plus one index array.
+- **Real place recognition.** The actual DBoW2 vocabulary (1.08 M nodes) parsed into flat arrays,
+  loops verified with SE(3) RANSAC and closed with a pose graph.
+
+Because the math is inspectable, the worst bugs were found by measuring, not guessing. Poses drifted
+off SO(3) through roundoff until tracking exploded at frame 40 (g2o hides this behind quaternions),
+and the pose graph was fighting its own loop correction because a drifted edge won deduplication
+(ATE 5.23 m to 0.96 m once fixed).
 
 ## Architecture
 
@@ -60,69 +103,52 @@ frame -> tracking (main thread)
           essential-graph pose graph
 ```
 
-Poses are world-to-camera SE(3), left-perturbation `T ← exp(ξ)T`. Every frame stores its pose
-relative to a reference keyframe, so bundle adjustment and loop corrections show up in the
-trajectory instead of being lost.
-
 ## Speed
 
 ![Threading: 1.1 fps mapping inline vs 6.4 fps with worker threads, same 500 frames](docs/throughput.svg)
 
-Tracking needs ~40 ms/frame and features ~43 ms. Mapping needs ~430 ms per keyframe, and a
-keyframe arrives every ~3 frames, so the only way to be fast is to get mapping off the
-tracking thread and let bundle adjustment run while the next frames track.
-
-![Per-keyframe cost: local BA 252 ms, fuse 67, insert 53, triangulate 43, cull 12 and 3](docs/keyframe_cost.svg)
-
-Two optimizations were measured and thrown away, which is the more useful half of the table:
+Mapping costs about 430 ms per keyframe, so the only way to be fast is to get it off the tracking
+thread. Four changes were measured, and two of them were thrown away:
 
 | Change | Result | Kept? |
 |---|---|---|
-| Mapping + loop closing on worker threads | 1.1 → 6.4 fps | yes |
-| Left/right ORB extraction in parallel | 51 → 43 ms per frame | yes |
-| Dense Schur complement instead of sparse | 2408 → 2715 ms on real problems (slower) | no |
-| Cap local BA at 12 covisible keyframes | no speedup at all, ATE 1.73 → 3.33 m | no |
+| Mapping and loop closing on worker threads | 1.1 to 6.4 fps | yes |
+| Left/right ORB extraction in parallel | 51 to 43 ms per frame | yes |
+| Dense Schur complement instead of sparse | 2408 to 2715 ms (slower) | no |
+| Cap local BA at 12 covisible keyframes | no speedup, ATE 1.73 to 3.33 m | no |
 
-The remaining bottleneck is the map lock: local mapping holds it ~175 ms per keyframe and
-tracking stalls behind it. Median frame is 81 ms (12 fps); the mean is 130 ms.
-
-## Accuracy
-
-![ATE: previous code 49.33 m, this system 1.73 m, ORB-SLAM2 published 1.30 m](docs/accuracy.svg)
-
-Translation drift 0.88 %, rotation drift 0.32 °/100 m, peak memory ~1 GB.
-
-## Against published systems
-
-![KITTI 00 ATE: ORB-SLAM2 1.30 m, this system 1.73 m, DPV-SLAM++ 8.30 m, DROID-SLAM 92.1 m, DPV-SLAM 112.8 m, DPVO 113.2 m](docs/comparison.svg)
-
-We do not beat ORB-SLAM2: 1.73 m against its 1.30 m, 0.88 % against 0.70 %, 0.32 against
-0.25 °/100 m. What this does beat is every learned SLAM system that publishes a KITTI 00
-number: DPV-SLAM++ at 8.30 m, DROID-SLAM at 92.1 m, DPVO at 113.2 m.
-
-Those systems are monocular, and a single camera gives no metric scale, so stereo explains a
-good part of that gap. The honest reading is the placement, not the ratio: a SLAM system whose
-estimator is NumPy lands in the classical-stereo accuracy band rather than the learned-monocular
-one, on a 3.7 km sequence, at 6 fps.
-
-## Get KITTI and run it
+## Run it
 
 ```bash
 .venv/bin/pip install -e ".[dev]"
-.venv/bin/python scripts/fetch_kitti.py --seq 00        # ~2.4 GB, pulled out of the official zip by byte range
 ```
 
-Ground-truth poses come from `data_odometry_poses.zip`; the vocabulary is ORB-SLAM3's
-`ORBvoc.txt` at `datasets/vocab/` (cached to `.npz` on first use).
+The vocabulary is ORB-SLAM3's `ORBvoc.txt` at `datasets/vocab/`, cached to `.npz` on first use.
+
+**EuRoC.** Pulls single flights out of a Hugging Face mirror by byte range (about 1 GB each):
 
 ```bash
-PATH="$PWD/.venv/bin:$PATH" .venv/bin/python scripts/run_kitti.py --seq 00   # live Rerun viewer
-.venv/bin/python scripts/run_kitti.py --seq 00 --no-viz                      # numbers only
-.venv/bin/python scripts/run_kitti.py --seq 00 --rrd outputs/run.rrd         # record, open later
+.venv/bin/python scripts/fetch_euroc.py MH_03_medium        # or: all
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/python scripts/run_kitti.py --dataset euroc --seq MH_03_medium
 ```
 
-Prints ATE, KITTI RPE, fps and the frames where loops closed; writes `outputs/traj_00.txt`
-in KITTI pose format.
+**KITTI.** Pulls one sequence out of the official zip by byte range (about 2.4 GB). Ground truth comes
+from `data_odometry_poses.zip`.
+
+```bash
+.venv/bin/python scripts/fetch_kitti.py --seq 00
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/python scripts/run_kitti.py --seq 00
+```
+
+Add `--no-viz` for numbers only, or `--rrd outputs/run.rrd` to record and open later. Each run prints
+ATE, fps, lost frames and loop closures, and writes the trajectory to `outputs/`.
+
+## How it works
+
+[`docs/slam2.0-architecture.pdf`](docs/slam2.0-architecture.pdf) is a 53-page walkthrough: the
+geometry, the optimizer derived from scratch, and one camera frame followed through all three
+threads, with code listings pulled straight from `src/slam/`. Rebuild it with
+`.venv/bin/python scripts/build_notes.py` (needs `weasyprint`).
 
 ## Tests
 
@@ -130,5 +156,5 @@ in KITTI pose format.
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/pytest -q
 ```
 
-Includes the dataset integrity check, a stereo-match gate against SGBM, solver tests with
+Includes the dataset checks for KITTI and EuRoC, a stereo-match gate against SGBM, solver tests with
 20 % outliers, and a pose-graph loop-recovery test.

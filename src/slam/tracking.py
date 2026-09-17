@@ -100,14 +100,15 @@ class Tracker:
         ok = ok and self._track_local_map(frame)
         if not ok:
             self.state = "lost"
-            frame.T_cw = self._predict()
+            frame.T_cw = self._predict(frame)
             return
         if self.state == "lost":
             self.last_reloc = frame.frame_id
         self.state = "ok"
         # Kept as a twist: exp() of it is always a rotation, so repeated prediction cannot
         # walk the pose off SE(3) (composing T @ invert(T_prev) does, ~3x per frame).
-        self.velocity = log_se3(frame.T_cw @ invert(self.last.T_cw))
+        # Per second, not per frame: cameras drop frames (EuRoC V2_03 skips every other one).
+        self.velocity = log_se3(frame.T_cw @ invert(self.last.T_cw)) / (frame.stamp - self.last.stamp)
         if self._need_keyframe(frame):
             self._create_keyframe(frame)
         frame.points[frame.outlier] = None
@@ -121,13 +122,13 @@ class Tracker:
                 mp = mp.replaced
             pts[i] = None if mp is None or mp.bad else mp
 
-    def _predict(self) -> np.ndarray:
+    def _predict(self, frame: Frame) -> np.ndarray:
         if self.velocity is None:
             return self.last.T_cw.copy()
-        return exp_se3(self.velocity) @ self.last.T_cw
+        return exp_se3(self.velocity * (frame.stamp - self.last.stamp)) @ self.last.T_cw
 
     def _track_motion_model(self, frame: Frame) -> bool:
-        frame.T_cw = self._predict()
+        frame.T_cw = self._predict(frame)
         n = self._search_last(frame, 7.0)
         if n < 20:
             n = self._search_last(frame, 14.0)
@@ -135,7 +136,7 @@ class Tracker:
 
     def _track_wide(self, frame: Frame) -> bool:
         """Fallback: wide projection search from the predicted pose (BoW reloc comes later)."""
-        frame.T_cw = self._predict()
+        frame.T_cw = self._predict(frame)
         return self._search_last(frame, 30.0) >= 15 and self._optimize_pose(frame) >= 10
 
     def _search_last(self, frame: Frame, th: float) -> int:

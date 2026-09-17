@@ -86,14 +86,18 @@ class LoopCloser(Worker):
         cov = kf.best_covisibles()
         min_score = min((score(kf.bow, c.bow) for c in cov), default=0.0)
         cands = self.db.candidates(kf, min_score, set(cov) | {kf})
-        groups, enough = [], []
+        groups, enough, extended = [], [], set()
         for c in cands:
             group = set(c.best_covisibles()) | {c}
             consistent = False
-            for prev, count in self.groups:
+            for g, (prev, count) in enumerate(self.groups):
                 if group & prev:
                     consistent = True
-                    groups.append((group, count + 1))
+                    # Each previous group is extended once, otherwise groups multiply every
+                    # keyframe when several candidates overlap (hovering in one room does this).
+                    if g not in extended:
+                        extended.add(g)
+                        groups.append((group, count + 1))
                     if count + 1 >= CONSISTENCY and c not in enough:
                         enough.append(c)
             if not consistent:

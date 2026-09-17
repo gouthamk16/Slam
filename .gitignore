@@ -28,6 +28,10 @@ htmlcov/
 # Project data and outputs
 datasets/
 outputs/
+*.rrd
+
+# Built from docs/notes.src.html by scripts/build_notes.py (the PDF is kept)
+docs/slam2.0-architecture.html
 
 # OS / editor
 .DS_Store

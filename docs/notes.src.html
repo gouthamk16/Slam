@@ -1,0 +1,1285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>slam2.0 — How the system works</title>
+<style>
+  @page {
+    size: A4;
+    margin: 22mm 20mm 20mm 20mm;
+    @top-left  { content: string(chaptitle); font: italic 8.5pt "Liberation Serif", serif; color: #555; }
+    @top-right { content: "slam2.0"; font: 8.5pt "Liberation Sans", sans-serif; color: #777; letter-spacing: .04em; }
+    @bottom-center { content: counter(page); font: 9pt "Liberation Serif", serif; color: #444; }
+  }
+  @page :first { @top-left { content: none } @top-right { content: none } @bottom-center { content: none } }
+
+  html { font-size: 10.5pt; }
+  body {
+    font-family: "Liberation Serif", "DejaVu Serif", serif;
+    line-height: 1.45; color: #14161a; margin: 0;
+    counter-reset: chapter figure eqn;
+    hyphens: auto;
+  }
+  p { margin: 0 0 .62em; text-align: justify; }
+  p.first { text-indent: 0; }
+  a { color: #14161a; text-decoration: none; }
+
+  /* ---------- title page ---------- */
+  .title { height: 245mm; display: flex; flex-direction: column; justify-content: center; }
+  .title .kicker { font-family: "Liberation Sans", sans-serif; font-size: 10pt; letter-spacing: .18em;
+                   text-transform: uppercase; color: #7a4b2a; margin-bottom: 10mm; }
+  .title h1 { font-family: "Liberation Sans", sans-serif; font-size: 30pt; line-height: 1.12;
+              margin: 0 0 6mm; font-weight: 700; letter-spacing: -.01em; }
+  .title .sub { font-size: 13pt; color: #3b4048; margin-bottom: 14mm; max-width: 125mm; }
+  .title .rule { border-top: 2px solid #14161a; width: 38mm; margin-bottom: 8mm; }
+  .title .meta { font-size: 10pt; color: #4a5058; line-height: 1.7; }
+  .title .figures { margin-top: 12mm; display: flex; gap: 6mm; }
+  .title .figures div { border: 1px solid #d8d4cc; padding: 3mm 4mm; }
+  .title .figures b { font-family: "Liberation Sans", sans-serif; font-size: 14pt; display: block; }
+  .title .figures span { font-size: 8.5pt; color: #5a6068; }
+
+  /* ---------- structure ---------- */
+  h1.chapter {
+    break-before: page; string-set: chaptitle content();
+    font-family: "Liberation Sans", sans-serif; font-size: 19pt; font-weight: 700;
+    line-height: 1.15; margin: 0 0 6mm; padding-bottom: 3mm; border-bottom: 1.5px solid #14161a;
+    counter-increment: chapter; counter-reset: section figure;
+  }
+  h1.chapter::before {
+    content: counter(chapter); display: block; font-size: 10pt; letter-spacing: .16em;
+    color: #7a4b2a; margin-bottom: 2mm; font-weight: 700;
+  }
+  h1.nonum { counter-increment: none; }
+  h1.nonum::before { content: none; }
+  h2 { font-family: "Liberation Sans", sans-serif; font-size: 12.5pt; margin: 7mm 0 2.5mm;
+       counter-increment: section; break-after: avoid; }
+  h2::before { content: counter(chapter) "." counter(section) "  "; color: #7a4b2a; }
+  h3 { font-family: "Liberation Sans", sans-serif; font-size: 10.5pt; margin: 5mm 0 1.5mm; break-after: avoid; }
+
+  /* ---------- toc ---------- */
+  ul.toc { list-style: none; padding: 0; margin: 0; font-size: 11pt; }
+  ul.toc li { margin: 0 0 1.8mm; display: flex; align-items: baseline; gap: 2mm; }
+  ul.toc li .n { font-family: "Liberation Sans", sans-serif; color: #7a4b2a; width: 7mm; flex: none; font-size: 9.5pt; }
+  ul.toc li .t { flex: 1; }
+  ul.toc li .t::after { content: ""; display: inline-block; }
+  ul.toc li a::after { content: target-counter(attr(href), page); float: right; color: #4a5058; }
+  ul.toc li.sub { font-size: 9.5pt; color: #3b4048; padding-left: 7mm; }
+
+  /* ---------- code ---------- */
+  /* keep a listing whole; the caption must never be stranded from its code */
+  figure.code { margin: 3.5mm 0; break-inside: avoid; }
+  figure.code.long { break-inside: auto; orphans: 8; widows: 8; }   /* too tall for one page */
+  figure.code figcaption { break-after: avoid; }
+  ul.tight, ol.tight { break-inside: avoid; }   /* short lists: never strand one bullet */
+  figure.code figcaption {
+    font-family: "Liberation Sans", sans-serif; font-size: 7.8pt; color: #6b7178;
+    background: #f2efe9; border: 1px solid #ded9d0; border-bottom: none; padding: 1.1mm 2.2mm;
+  }
+  pre { margin: 0; background: #faf8f4; border: 1px solid #ded9d0; padding: 2.2mm 2.6mm; overflow-wrap: break-word; }
+  code { font-family: "DejaVu Sans Mono", "Liberation Mono", monospace; font-size: 7.6pt; line-height: 1.36; white-space: pre-wrap; }
+  p code, li code, td code { font-size: 8.6pt; background: #f2efe9; padding: 0 .8mm; border-radius: 1px; }
+
+  /* ---------- math ---------- */
+  /* block, not flex: a flex item cannot contain the inline-table matrices below */
+  .eq { margin: 3mm 0; position: relative; padding-right: 15mm; text-align: center; break-inside: avoid; }
+  .eq .expr { font-size: 11pt; }
+  .eq .num { position: absolute; right: 0; top: 50%; color: #6b7178; font-size: 9pt; }
+  .eq .num::before { counter-increment: eqn; content: "(" counter(chapter) "." counter(eqn) ")"; }
+  var, .v { font-style: italic; }
+  .mono { font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; }
+
+  /* stacked matrices as inline tables with drawn brackets — reliable in print */
+  table.mat { display: inline-table; width: auto; margin: 0 1mm; vertical-align: middle;
+              border-left: 1px solid #14161a; border-right: 1px solid #14161a;
+              border-collapse: separate; border-spacing: 2mm .5mm; }
+  table.mat td { border: none; padding: 0 .6mm; text-align: center; font-size: 10.5pt; }
+  table.mat::before, table.mat::after { content: ""; }
+  .eq .expr { display: inline-block; }   /* keep fractions and matrices on one line */
+  .frac { display: inline-table; width: auto; vertical-align: middle; margin: 0 .5mm; border-collapse: collapse; }
+  .frac td { border: none; padding: 0 .4mm; text-align: center; font-size: 9.5pt; line-height: 1.15; }
+  .frac tr:first-child td { border-bottom: .8px solid #14161a; }
+
+  /* ---------- figures & tables ---------- */
+  figure.fig { margin: 4mm 0; break-inside: avoid; text-align: center; }
+  figure.fig img, figure.fig svg { max-width: 100%; }
+  figure.fig figcaption, figure.code + p.caption {
+    font-size: 8.6pt; color: #4a5058; margin-top: 1.8mm; text-align: left;
+  }
+  figure.fig figcaption::before { counter-increment: figure; content: "Figure " counter(chapter) "." counter(figure) ". "; font-weight: 700; color: #14161a; }
+  table { border-collapse: collapse; width: 100%; font-size: 9pt; margin: 3.5mm 0; break-inside: avoid; }
+  th, td { text-align: left; padding: 1.5mm 2mm; border-bottom: .5px solid #ded9d0; vertical-align: top; }
+  th { font-family: "Liberation Sans", sans-serif; font-size: 8.2pt; text-transform: uppercase;
+       letter-spacing: .05em; color: #5a6068; border-bottom: 1px solid #14161a; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* ---------- callouts ---------- */
+  .box { break-inside: avoid; margin: 4mm 0; padding: 3mm 3.5mm; font-size: 9.6pt; }
+  .box h4 { font-family: "Liberation Sans", sans-serif; font-size: 8.4pt; text-transform: uppercase;
+            letter-spacing: .09em; margin: 0 0 1.6mm; }
+  .bug { background: #fdf6f3; border-left: 2.5px solid #c2542a; }
+  .bug h4 { color: #a8431f; }
+  .why { background: #f4f6f9; border-left: 2.5px solid #2a5fa6; }
+  .why h4 { color: #24528f; }
+  .check { background: #f6f7f2; border-left: 2.5px solid #6a7a3a; }
+  .check h4 { color: #53632c; }
+  .check ol { margin: 0; padding-left: 5mm; }
+  .check li { margin-bottom: 1mm; }
+  ul.tight, ol.tight { margin: 0 0 .7em; padding-left: 5.5mm; }
+  ul.tight li, ol.tight li { margin-bottom: 1.1mm; }
+  .lead { font-size: 11pt; color: #3b4048; }
+  .small { font-size: 8.8pt; color: #4a5058; }
+</style>
+</head>
+<body>
+
+<!-- ============================ TITLE ============================ -->
+<section class="title">
+  <div class="kicker">Engineering notes</div>
+  <h1>How slam2.0 works</h1>
+  <div class="sub">A stereo visual SLAM system, from one camera frame to a closed loop —
+  the geometry, the optimizer, the code, and the bugs that taught us the most.</div>
+  <div class="rule"></div>
+  <div class="meta">
+    KITTI odometry, sequence 00 · 4541 stereo frames · 3.7 km<br>
+    Architecture after ORB-SLAM2 / ORB-SLAM3; estimator written from scratch in NumPy<br>
+    Companion to the source tree at <span class="mono">src/slam/</span>
+  </div>
+  <div class="figures">
+    <div><b>1.73 m</b><span>ATE, full sequence</span></div>
+    <div><b>0.88 %</b><span>translation drift</span></div>
+    <div><b>0</b><span>lost frames</span></div>
+    <div><b>4</b><span>loop closures, all true</span></div>
+  </div>
+</section>
+
+<!-- ============================ TOC ============================ -->
+<h1 class="chapter nonum" id="toc">Contents</h1>
+<ul class="toc">
+  <li><span class="n">1</span><span class="t"><a href="#ch-problem">What problem this solves</a></span></li>
+  <li><span class="n">2</span><span class="t"><a href="#ch-papers">The papers, and what we took from each</a></span></li>
+  <li><span class="n">3</span><span class="t"><a href="#ch-geometry">Geometry you need: camera, stereo, SE(3)</a></span></li>
+  <li><span class="n">4</span><span class="t"><a href="#ch-structures">The data structures the whole system stands on</a></span></li>
+  <li><span class="n">5</span><span class="t"><a href="#ch-frontend">Frame in: ORB features and stereo matching</a></span></li>
+  <li><span class="n">6</span><span class="t"><a href="#ch-init">Frame 0: starting a map from nothing</a></span></li>
+  <li><span class="n">7</span><span class="t"><a href="#ch-tracking">Frame 1 and after: tracking</a></span></li>
+  <li><span class="n">8</span><span class="t"><a href="#ch-solver">The optimizer, derived</a></span></li>
+  <li><span class="n">9</span><span class="t"><a href="#ch-mapping">Local mapping: growing and cleaning the map</a></span></li>
+  <li><span class="n">10</span><span class="t"><a href="#ch-loop">Loop closing: recognising a place and fixing the past</a></span></li>
+  <li><span class="n">11</span><span class="t"><a href="#ch-threads">Three threads and one lock</a></span></li>
+  <li><span class="n">12</span><span class="t"><a href="#ch-eval">Measuring it: ATE, RPE, and what the numbers mean</a></span></li>
+  <li><span class="n">13</span><span class="t"><a href="#ch-bugs">Three bugs worth knowing by heart</a></span></li>
+  <li><span class="n">14</span><span class="t"><a href="#ch-gaps">What is missing, and what I would build next</a></span></li>
+  <li><span class="n">A</span><span class="t"><a href="#ap-files">Appendix A — file map</a></span></li>
+  <li><span class="n">B</span><span class="t"><a href="#ap-glossary">Appendix B — glossary</a></span></li>
+</ul>
+
+<p class="small" style="margin-top:8mm">
+<b>How to read this.</b> Chapters 3 to 10 follow a single camera frame through the system in the order the
+code actually runs. Every listing is pulled out of the repository when this document is built, so what you
+read here is what runs. Boxes marked <i>Why this way</i> explain a design choice you will be asked about;
+boxes marked <i>Bug story</i> are real failures from this project — they are the most useful interview
+material in the document. Each chapter ends with questions you should be able to answer out loud.
+</p>
+
+<!-- ============================ 1 ============================ -->
+<h1 class="chapter" id="ch-problem">What problem this solves</h1>
+
+<p class="lead first">A camera on a moving car produces images. We want two things out of them: where the
+camera is at every instant, and a map of the world it is looking at. Doing both at once, without a prior
+map and without GPS, is Simultaneous Localization and Mapping.</p>
+
+<h2>Odometry drifts, and drift compounds</h2>
+
+<p>The naive approach is visual odometry: match features between consecutive frames, compute the motion
+between them, and chain the motions together. Each step carries a small error. Chaining multiplies those
+errors together, so position error grows without bound — and the error is in the <em>pose</em>, which means
+it also rotates everything you estimate afterwards. On a 3.7 km sequence a 1% drift rate is tens of metres
+by the end.</p>
+
+<p>SLAM fixes this by keeping a map and using it. If the camera sees a wall it already has points for, and
+those points are still in the map with good positions, the pose can be computed <em>against the map</em>
+rather than against the previous frame. The error then does not compound: it is bounded by how well the map
+is known in the area you are in.</p>
+
+<h2>Three kinds of data association</h2>
+
+<p>ORB-SLAM3's paper makes this the organising idea of the whole field, and it is the clearest way to
+remember what the parts of this system do:</p>
+
+<table>
+  <thead><tr><th style="width:26%">Association</th><th style="width:34%">What it means</th><th>Where it lives here</th></tr></thead>
+  <tbody>
+  <tr><td><b>Short-term</b></td><td>Match to the last few frames. Pure odometry. Always drifts.</td>
+      <td><span class="mono">Tracker._search_last</span> — the constant-velocity step</td></tr>
+  <tr><td><b>Mid-term</b></td><td>Match to map elements that are still geometrically close, i.e. the
+      accumulated drift is small enough that projection works. <b>This is what kills drift.</b></td>
+      <td><span class="mono">Tracker._track_local_map</span> and local bundle adjustment</td></tr>
+  <tr><td><b>Long-term</b></td><td>Recognise a place regardless of drift, using appearance. Fixes the
+      global shape of the trajectory.</td>
+      <td><span class="mono">LoopCloser</span> — bag of words, then a pose graph</td></tr>
+  </tbody>
+</table>
+
+<div class="why">
+  <h4>Why this way</h4>
+  <p style="margin:0">A system with only short-term association is a visual odometry system, whatever it
+  calls itself. The single most important sentence in this document: <b>the map must feed back into pose
+  estimation.</b> An earlier version of this project built a perfectly good map and never used it for
+  tracking — it looked like SLAM from the outside and drifted like odometry, because it was odometry.</p>
+</div>
+
+<h2>Why stereo</h2>
+
+<p>A single camera cannot tell a small nearby object from a large distant one: monocular SLAM recovers the
+world only up to an unknown scale factor, and that scale itself drifts. Two cameras a known distance apart
+(the <em>baseline</em>, 53.7 cm on the KITTI car) fix the scale from the first frame. That one fact removes
+an entire class of problems: no scale drift, no need for a delicate initialisation procedure, and loop
+closure becomes a rigid-body correction instead of a 7-degree-of-freedom similarity correction.</p>
+
+<div class="check">
+  <h4>Check yourself</h4>
+  <ol>
+    <li>Why does matching against a map bound the error, when matching against the previous frame does not?</li>
+    <li>Which of the three associations would you lose if you deleted the bag-of-words vocabulary? What would
+        the trajectory look like on a sequence that revisits a street?</li>
+    <li>Name the two things stereo gives you that monocular does not.</li>
+  </ol>
+</div>
+
+<!-- ============================ 2 ============================ -->
+<h1 class="chapter" id="ch-papers">The papers, and what we took from each</h1>
+
+<p class="lead first">This system is not a new algorithm. It is a careful implementation of a well-understood
+one, and every component has a source. Being able to say which idea came from where — and why it is there —
+is most of what &ldquo;I built this&rdquo; means.</p>
+
+<table>
+  <thead><tr><th style="width:30%">Paper</th><th style="width:38%">The idea we used</th><th>Where it lives</th></tr></thead>
+  <tbody>
+  <tr><td><b>ORB-SLAM</b><br><span class="small">Mur-Artal, Montiel, Tardós, TRO 2015</span></td>
+      <td>Keyframe SLAM rather than filtering; the same ORB features for tracking, mapping and place
+      recognition; the covisibility graph; the essential graph for pose-graph optimisation; generous
+      keyframe insertion followed by culling.</td>
+      <td><span class="mono">map/structure.py</span>, <span class="mono">tracking.py</span></td></tr>
+  <tr><td><b>ORB-SLAM2</b><br><span class="small">Mur-Artal, Tardós, TRO 2017</span></td>
+      <td>Stereo keypoints <span class="mono">(u, v, u<sub>R</sub>)</span>; the close/far split at 35
+      baselines; map initialisation from the very first stereo frame; SE(3) loop closing; local BA with
+      fixed outer keyframes.</td>
+      <td><span class="mono">features/orb.py</span>, <span class="mono">mapping.py</span></td></tr>
+  <tr><td><b>ORB-SLAM3</b><br><span class="small">Campos et al., TRO 2021</span></td>
+      <td>The short/mid/long-term framing used in Chapter 1; place recognition that scores candidates over
+      covisible groups instead of single keyframes.</td>
+      <td><span class="mono">loop.py</span></td></tr>
+  <tr><td><b>DBoW2</b><br><span class="small">Gálvez-López, Tardós, TRO 2012</span></td>
+      <td>A vocabulary tree over binary descriptors, TF-IDF weighting, L1 scoring, and an inverted file so
+      querying does not touch every keyframe.</td>
+      <td><span class="mono">features/vocab.py</span></td></tr>
+  <tr><td><b>Bundle Adjustment — A Modern Synthesis</b><br><span class="small">Triggs et al., 2000</span></td>
+      <td>The Schur complement trick that makes BA tractable, and robust kernels in the normal equations.</td>
+      <td><span class="mono">optimize/solver.py</span></td></tr>
+  <tr><td><b>Closed-form absolute orientation</b><br><span class="small">Horn, 1987</span></td>
+      <td>Least-squares rigid transform between two sets of 3-D points, in closed form.</td>
+      <td><span class="mono">geometry/align.py</span> — loop verification and ATE alignment</td></tr>
+  <tr><td><b>Multiple View Geometry</b><br><span class="small">Hartley &amp; Zisserman</span></td>
+      <td>DLT triangulation, the fundamental matrix, epipolar constraints.</td>
+      <td><span class="mono">geometry/triangulate.py</span>, <span class="mono">mapping.py</span></td></tr>
+  <tr><td><b>KITTI benchmark</b><br><span class="small">Geiger et al., 2012</span></td>
+      <td>The dataset, and the relative-drift metric over 100–800 m segments.</td>
+      <td><span class="mono">eval.py</span>, <span class="mono">data/kitti.py</span></td></tr>
+  <tr><td><b>TUM RGB-D benchmark</b><br><span class="small">Sturm et al., 2012</span></td>
+      <td>Absolute trajectory error as RMSE after rigid alignment.</td>
+      <td><span class="mono">eval.py</span></td></tr>
+  </tbody>
+</table>
+
+<h2>What we deliberately did not take</h2>
+<ul class="tight">
+  <li><b>Inertial fusion</b> (ORB-SLAM3's headline contribution). There is no IMU in our input stream.</li>
+  <li><b>The Atlas / multi-map system.</b> Worth having when tracking fails; tracking has not failed on our
+  sequence, so building it would be untested code.</li>
+  <li><b>Monocular initialisation</b> (the homography/fundamental model selection). Stereo makes it unnecessary.</li>
+  <li><b>Sim(3) loop closing.</b> Stereo fixes scale, so the 7-DoF similarity collapses to a 6-DoF rigid
+  transform — exactly the simplification ORB-SLAM2 makes over ORB-SLAM.</li>
+</ul>
+
+<!-- ============================ 3 ============================ -->
+<h1 class="chapter" id="ch-geometry">Geometry you need: camera, stereo, SE(3)</h1>
+
+<p class="lead first">Two pieces of mathematics carry the entire system: how a 3-D point becomes pixels, and
+how to represent and update a camera pose. Everything else is bookkeeping around them.</p>
+
+<h2>The pinhole camera</h2>
+
+<p>A point in camera coordinates <span class="v">X<sub>c</sub></span> = (<span class="v">X, Y, Z</span>)
+projects to pixels by</p>
+
+<div class="eq"><span class="expr">
+  <span class="v">u</span> = <span class="v">f<sub>x</sub></span> <span class="v">X</span> / <span class="v">Z</span> + <span class="v">c<sub>x</sub></span>,
+  &nbsp;&nbsp;&nbsp;
+  <span class="v">v</span> = <span class="v">f<sub>y</sub></span> <span class="v">Y</span> / <span class="v">Z</span> + <span class="v">c<sub>y</sub></span>
+</span><span class="num"></span></div>
+
+<p>with focal lengths <span class="v">f<sub>x</sub>, f<sub>y</sub></span> in pixels and principal point
+(<span class="v">c<sub>x</sub>, c<sub>y</sub></span>). On KITTI sequence 00,
+<span class="v">f<sub>x</sub></span> = 718.856 px and the images are 1241 × 376.</p>
+
+<h2>The stereo keypoint</h2>
+
+<p>The two KITTI cameras are rectified: they have the same intrinsics and are displaced along the
+<span class="v">x</span> axis by the baseline <span class="v">b</span> = 0.537 m, so the same world point
+lands on the <em>same image row</em> in both. Its horizontal position in the right image is</p>
+
+<div class="eq"><span class="expr">
+  <span class="v">u<sub>R</sub></span> = <span class="v">f<sub>x</sub></span>
+  (<span class="v">X</span> − <span class="v">b</span>) / <span class="v">Z</span> + <span class="v">c<sub>x</sub></span>
+</span><span class="num"></span></div>
+
+<p>so a measurement is the triple (<span class="v">u, v, u<sub>R</sub></span>) — ORB-SLAM2 calls this a
+<em>stereo keypoint</em>. The difference <span class="v">d</span> = <span class="v">u</span> −
+<span class="v">u<sub>R</sub></span> is the disparity, and inverting the equation gives depth directly:</p>
+
+<div class="eq"><span class="expr">
+  <span class="v">Z</span> = <span class="v">f<sub>x</sub></span> <span class="v">b</span> / <span class="v">d</span>
+</span><span class="num"></span></div>
+
+<figure class="fig">
+<svg width="420" height="170" viewBox="0 0 420 170" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif" font-size="9">
+  <circle cx="330" cy="26" r="4" fill="#14161a"/>
+  <text x="340" y="29" font-size="9">world point X</text>
+  <line x1="60" y1="130" x2="330" y2="26" stroke="#2a5fa6" stroke-width="1.2"/>
+  <line x1="180" y1="130" x2="330" y2="26" stroke="#c2542a" stroke-width="1.2"/>
+  <rect x="30" y="118" width="60" height="24" fill="none" stroke="#14161a"/>
+  <rect x="150" y="118" width="60" height="24" fill="none" stroke="#14161a"/>
+  <text x="38" y="155" fill="#2a5fa6">left camera</text>
+  <text x="156" y="155" fill="#c2542a">right camera</text>
+  <line x1="60" y1="146" x2="180" y2="146" stroke="#6b7178" stroke-dasharray="3 2"/>
+  <text x="100" y="166" fill="#4a5058">baseline b</text>
+  <text x="64" y="114" fill="#2a5fa6">u</text>
+  <text x="184" y="114" fill="#c2542a">u_R</text>
+  <text x="240" y="86" fill="#4a5058">disparity d = u − u_R</text>
+  <text x="240" y="100" fill="#4a5058">depth Z = f·b / d</text>
+</svg>
+<figcaption>Stereo in one picture. Disparity is large for near points and shrinks to zero at infinity, so
+depth uncertainty grows as <span class="v">Z</span>² — the reason ORB-SLAM2 treats "close" and "far" points
+differently.</figcaption>
+</figure>
+
+<p>Both live in one small class, and the projection used by the optimizer is the stereo one:</p>
+
+{{func:src/slam/data/frame.py:project_stereo}}
+
+<div class="why">
+  <h4>Why this way</h4>
+  <p style="margin:0">Because depth error grows with <span class="v">Z</span>², a point at 5 m is a precise
+  measurement and a point at 80 m is barely more than a bearing. ORB-SLAM2's answer, which we copy, is the
+  <b>close/far split</b> at <span class="v">Z</span> &lt; 35<span class="v">b</span> ≈ 18.8 m: close points
+  are trusted enough to create map points immediately from one frame, far points only through triangulation
+  across several views, and the keyframe rule watches the count of close points (Chapter 7).</p>
+</div>
+
+<h2>Poses live on a manifold, not in a vector space</h2>
+
+<p>A camera pose is a rotation and a translation. We store it as a 4 × 4 matrix taking world coordinates to
+camera coordinates,</p>
+
+<div class="eq"><span class="expr">
+  <span class="v">T<sub>cw</sub></span> =
+  <table class="mat"><tr><td><span class="v">R</span></td><td><span class="v">t</span></td></tr>
+  <tr><td>0</td><td>1</td></tr></table>,
+  &nbsp;&nbsp; <span class="v">X<sub>c</sub></span> = <span class="v">R</span> <span class="v">X<sub>w</sub></span> + <span class="v">t</span>
+</span><span class="num"></span></div>
+
+<p>The subtlety: the set of valid rotations is not a vector space. You cannot optimise by adding a
+correction to <span class="v">R</span>, because <span class="v">R</span> + Δ is generally not a rotation any
+more. The standard fix is to parameterise <em>updates</em> in the Lie algebra: a six-vector
+<span class="v">ξ</span> = (<span class="v">ω</span>, <span class="v">v</span>) — three for rotation, three
+for translation — mapped onto the manifold by the exponential map, and applied on the left:</p>
+
+<div class="eq"><span class="expr">
+  <span class="v">T</span> ← exp(<span class="v">ξ</span><sup>∧</sup>) <span class="v">T</span>
+</span><span class="num"></span></div>
+
+<p>The optimizer therefore always works with a small six-vector, and the pose is guaranteed to stay a valid
+pose because exp() returns a rotation by construction. Our implementation is the textbook Rodrigues
+formula:</p>
+
+{{func:src/slam/geometry/lie.py:exp_se3}}
+
+<p>and the inverse map, used to turn a relative pose into a twist:</p>
+
+{{func:src/slam/geometry/lie.py:log_se3}}
+
+<div class="bug">
+  <h4>Bug story — poses that stopped being poses</h4>
+  <p>Floating-point round-off means a pose that has been multiplied a few thousand times is no longer
+  exactly orthonormal. That is normally harmless. It was not harmless here, because the constant-velocity
+  model computes <span class="mono">T @ invert(T_prev)</span>, and <span class="mono">invert()</span> uses
+  <span class="v">R</span><sup>T</sup> as <span class="v">R</span><sup>−1</sup> — which is only true for an
+  exact rotation. Feed a slightly-off matrix in, get a worse one out, use it to predict, repeat. The error
+  <b>tripled every frame</b>: 3 × 10<sup>−14</sup> at frame 5, 10<sup>−6</sup> at frame 25, 5 × 10<sup>−2</sup>
+  at frame 37, tracking dead at frame 41.</p>
+  <p style="margin-bottom:0">Two fixes, both kept. The velocity is now stored as a twist, so prediction goes
+  through exp() and cannot leave the manifold. And every estimator projects its input poses back onto SO(3)
+  first — which is exactly what g2o gets for free by storing rotations as quaternions and re-normalising.</p>
+</div>
+
+{{func:src/slam/geometry/lie.py:orthonormalize}}
+
+<div class="check">
+  <h4>Check yourself</h4>
+  <ol>
+    <li>A point is measured with disparity 2 px at <span class="v">f<sub>x</sub></span> = 719,
+        <span class="v">b</span> = 0.54 m. How far away is it, and how much does the depth change if the
+        disparity is off by half a pixel?</li>
+    <li>Why do we apply pose updates on the left (<span class="mono">exp(ξ) T</span>) rather than adding to
+        the matrix entries?</li>
+    <li>What does <span class="mono">invert()</span> assume, and what happens when that assumption is
+        slightly violated a few hundred times in a row?</li>
+  </ol>
+</div>
+
+<!-- ============================ 4 ============================ -->
+<h1 class="chapter" id="ch-structures">The data structures the whole system stands on</h1>
+
+<p class="lead first">Four objects. Everything the system does is an operation on these, so it is worth
+knowing them precisely before following the execution flow.</p>
+
+<h2>Frame, MapPoint, KeyFrame, Map</h2>
+
+<table>
+  <thead><tr><th style="width:22%">Object</th><th>What it is</th></tr></thead>
+  <tbody>
+  <tr><td><b>Frame</b></td><td>One stereo image pair plus what we extracted from it: keypoints, descriptors,
+  octaves, <span class="mono">u_right</span>, and a pose. Cheap and discarded after use.</td></tr>
+  <tr><td><b>MapPoint</b></td><td>A 3-D point in the world: position, the keyframes that observe it and at
+  which keypoint index, a representative descriptor, a mean viewing direction, a valid distance range, and
+  the counters that decide whether it survives culling.</td></tr>
+  <tr><td><b>KeyFrame</b></td><td>A frame promoted to permanent status: its pose, its features, its map
+  points, plus its links — covisibility weights, a spanning-tree parent, and loop edges.</td></tr>
+  <tr><td><b>Map</b></td><td>The set of keyframes and points, a lock, and a version counter.</td></tr>
+  </tbody>
+</table>
+
+<h2>Two derived quantities that do a lot of work</h2>
+
+<p>Every map point maintains a <b>mean viewing direction</b> and a <b>scale-invariance distance range</b>.
+They exist so that a later frame can ask a cheap question &mdash; &ldquo;could I even see this point from here, and at
+what pyramid level would it appear?&rdquo; &mdash; without trying to match it:</p>
+
+{{func:src/slam/map/structure.py:update_normal_and_depth}}
+
+<p>The range comes from the octave the point was detected at: a point found at pyramid level
+<span class="v">l</span> at distance <span class="v">d</span> would be detectable between roughly
+<span class="v">d</span>·1.2<sup><span class="v">l</span></sup> and that divided by 1.2<sup>7</sup>. Inverting
+that relation predicts the level at which it should appear now, which tells the matcher which octaves to
+search:</p>
+
+{{func:src/slam/features/orb.py:predict_level}}
+
+<p>Both feed the frustum test, which is used identically by tracking, by fusion and by loop closing:</p>
+
+{{func:src/slam/map/structure.py:visible}}
+
+<h2>The covisibility graph and the spanning tree</h2>
+
+<p>Two keyframes are <em>covisible</em> if they observe the same map points; the edge weight is how many.
+This graph is the backbone of the system:</p>
+
+<ul class="tight">
+  <li><b>Tracking</b> uses it to decide which part of the map to project into the current frame.</li>
+  <li><b>Local BA</b> optimises exactly the covisible neighbourhood of the newest keyframe.</li>
+  <li><b>Loop closing</b> uses it to group candidates, and optimises the <em>essential graph</em>: the
+  spanning tree, plus edges with weight ≥ 100, plus loop edges.</li>
+</ul>
+
+{{func:src/slam/map/structure.py:update_connections}}
+
+<div class="why">
+  <h4>Why this way</h4>
+  <p style="margin:0">The full covisibility graph is dense — thousands of keyframes, each linked to dozens.
+  Optimising all of it after a loop closure would be needlessly slow, and optimising only the spanning tree
+  would be too weak. The essential graph is ORB-SLAM's compromise: keep the tree so the graph stays
+  connected, keep only strong edges, add the loop. That is the difference between a pose graph that solves
+  in a second and one that does not.</p>
+</div>
+
+<div class="check">
+  <h4>Check yourself</h4>
+  <ol>
+    <li>Why does a map point store a viewing direction at all — what goes wrong without it when the car
+        drives back down the same street in the opposite direction?</li>
+    <li>A keyframe is culled. What happens to its spanning-tree children, and why must the culled keyframe
+        remember <span class="mono">T_cp</span>?</li>
+  </ol>
+</div>
+
+<!-- ============================ 5 ============================ -->
+<h1 class="chapter" id="ch-frontend">Frame in: ORB features and stereo matching</h1>
+
+<p class="lead first">The pipeline starts here. Everything downstream sees only keypoints and descriptors —
+the images are never looked at again.</p>
+
+<h2>ORB, and why features are spread on purpose</h2>
+
+<p>ORB gives a corner position, a pyramid level (octave), an orientation, and a 256-bit binary descriptor
+that can be compared with an XOR and a bit count. We ask OpenCV for twice the budget and then keep the
+strongest per grid cell, because a natural detector piles features onto whatever is most textured — a tree,
+a fence — and leaves the rest of the image empty. Spread features mean better-conditioned geometry:</p>
+
+{{func:src/slam/features/orb.py:_bucket}}
+
+<h2>Matching left to right</h2>
+
+<p>Because the pair is rectified, the search for a keypoint's stereo partner is one-dimensional: same row,
+to the left, within a disparity range. Three filters do the work — a row band scaled by the octave, an
+octave-similarity test, and a disparity range — and only then do we compare descriptors:</p>
+
+{{func:src/slam/features/orb.py:match_stereo}}
+
+<p>The descriptor match gives an integer pixel. That is not accurate enough: one pixel of disparity error at
+20 m is about 1.4 m of depth. So each match is refined by a sliding sum-of-absolute-differences window on the
+keypoint's own pyramid level, followed by a parabola fit through the best three scores — giving a subpixel
+<span class="mono">u_right</span>:</p>
+
+{{func:src/slam/features/orb.py:_subpixel}}
+
+<div class="why">
+  <h4>Why this way</h4>
+  <p style="margin:0">Notice the shape of that code: no Python loop over keypoints. Patches for every match
+  at a given pyramid level are gathered with one fancy-index operation into an array of shape
+  (matches, shifts, 11, 11), and the SAD scores for all of them are one <span class="mono">abs().sum()</span>.
+  This is the pattern used everywhere in this codebase — the loop is over the eight pyramid levels, not over
+  the two thousand features. It is the reason a pure-NumPy SLAM system runs at all.</p>
+</div>
+
+<h2>The primitives everything else matches with</h2>
+
+<p>Three small functions in <span class="mono">features/matcher.py</span> are reused by tracking, mapping
+and loop closing. First, Hamming distance over whole arrays via a 256-entry popcount table:</p>
+
+{{func:src/slam/features/matcher.py:hamming}}
+
+<p>Second, a way to turn "for each item, a variable-length list of candidates" into flat index arrays — the
+idiom that replaces nested loops throughout:</p>
+
+{{func:src/slam/features/matcher.py:ragged_pairs}}
+
+<p>Third, the mutual-best-match rule, with an optional Lowe-style ratio test:</p>
+
+{{func:src/slam/features/matcher.py:one_to_one}}
+
+<div class="check">
+  <h4>Check yourself</h4>
+  <ol>
+    <li>Why search for the stereo partner only to the <em>left</em> of the keypoint, and only within
+        <span class="v">d</span> ∈ [0, <span class="v">f<sub>x</sub></span>]?</li>
+    <li>What would break if we skipped subpixel refinement — in the map, and in the estimated speed of the car?</li>
+    <li>Explain <span class="mono">ragged_pairs</span> to someone who has never seen it. What are the two
+        output arrays, and what replaces the inner loop?</li>
+  </ol>
+</div>
+
+<!-- ============================ 6 ============================ -->
+<h1 class="chapter" id="ch-init">Frame 0: starting a map from nothing</h1>
+
+<p class="lead first">Monocular SLAM needs a careful two-view initialisation. Stereo does not: the first
+frame already contains metric depth, so the map exists after one image pair.</p>
+
+{{func:src/slam/tracking.py:_initialize}}
+
+<p>Every keypoint with a valid stereo match is unprojected into the world and becomes a map point; the frame
+becomes keyframe 0, which is also the origin of the world frame and the one pose that is never optimised —
+it fixes the gauge (see Chapter 8). On KITTI 00 this yields about 1150 points immediately.</p>
+
+<p>The unprojection is the stereo equations of Chapter 3, applied to an index array:</p>
+
+{{func:src/slam/tracking.py:unproject}}
+
+<!-- ============================ 7 ============================ -->
+<h1 class="chapter" id="ch-tracking">Frame 1 and after: tracking</h1>
+
+<p class="lead first">This is the per-frame hot path, and it runs in the order below. Read
+<span class="mono">Tracker._track</span> as the table of contents for this chapter.</p>
+
+{{func:src/slam/tracking.py:_track}}
+
+<h2>Step 1 — predict</h2>
+
+<p>The cheapest useful prior is that the camera keeps doing what it was doing. We store the last
+frame-to-frame motion as a twist and apply it to the last pose:</p>
+
+{{func:src/slam/tracking.py:_predict}}
+
+<p>Before that, the last frame's pose is re-anchored on its reference keyframe. This matters: bundle
+adjustment or a loop closure may have moved that keyframe since, and the velocity model must be measured
+against the corrected world, not a stale one.</p>
+
+{{func:src/slam/tracking.py:_update_last_frame}}
+
+<h2>Step 2 — find the last frame's points in this image</h2>
+
+<p>Each map point seen in the last frame is projected into the predicted pose and searched for in a window
+around its projection. Two details make this reliable. The search radius scales with the octave, because a
+feature detected at a coarse level is intrinsically less well localised. And the range of octaves searched
+depends on the direction of travel: driving forward, a point's scale can only grow, so we search from its
+last octave upward.</p>
+
+{{func:src/slam/tracking.py:_search_last}}
+
+<p>The matches are then filtered by an orientation-consistency histogram — genuine matches share a common
+rotation between the two frames, so matches outside the three dominant bins are discarded:</p>
+
+{{func:src/slam/features/matcher.py:rotation_consistent}}
+
+<h2>Step 3 — solve for the pose</h2>
+
+<p>With 3-D points fixed and 2-D/3-D measurements in hand, the pose is the solution of a small non-linear
+least squares problem — <b>motion-only bundle adjustment</b>, derived in Chapter 8. In code it is one call
+plus bookkeeping of which observations turned out to be outliers:</p>
+
+{{func:src/slam/tracking.py:_optimize_pose}}
+
+<h2>Step 4 — track the local map</h2>
+
+<p>Matching only the last frame's points is still short-term association, so drift would still accumulate.
+The fix is to pull in the part of the map that should be visible <em>now</em>. K1 is the set of keyframes
+that share points with the current frame; K2 adds one covisible neighbour, one child and the parent of each,
+which extends the window without exploding it:</p>
+
+{{func:src/slam/tracking.py:_update_local_keyframes}}
+
+<p>All points of those keyframes that are not already matched are put through the frustum test of Chapter 4,
+and the survivors are searched for with a radius that depends on the viewing angle — a point seen
+straight-on is predicted more precisely than one seen obliquely:</p>
+
+{{func:src/slam/tracking.py:_search_local_points}}
+
+<p>Then the pose is optimised a second time, now against several hundred map points from many keyframes.
+<b>This second optimisation is the mid-term association that keeps the system from drifting</b>, and it is
+what separates this from visual odometry.</p>
+
+<h2>Step 5 — decide whether this frame becomes a keyframe</h2>
+
+<p>Keyframes are inserted generously and culled later. The conditions are ORB-SLAM2's, including the stereo
+one that matters on a road: if the number of tracked <em>close</em> points falls below 100 while more than 70
+untracked close points are available, the camera is moving into new nearby structure and needs a keyframe
+regardless of how well tracking is going.</p>
+
+{{func:src/slam/tracking.py:_need_keyframe}}
+
+<p>Creating one also creates map points from the closest stereo keypoints — nearest first, always the close
+ones, and at least a hundred:</p>
+
+{{func:src/slam/tracking.py:_create_keyframe}}
+
+<div class="why">
+  <h4>Why this way</h4>
+  <p style="margin:0">Every frame stores its pose <em>relative to its reference keyframe</em>, not as an
+  absolute pose. When bundle adjustment or a loop closure moves the keyframes, the whole trajectory moves
+  with them for free. Storing absolute per-frame poses — which an earlier version of this project did —
+  means the trajectory you print is the one before all your optimisations, and none of the corrections ever
+  show up in the output.</p>
+</div>
+
+{{func:src/slam/tracking.py:trajectory}}
+
+<div class="check">
+  <h4>Check yourself</h4>
+  <ol>
+    <li>Tracking succeeds against the last frame but the local-map step then reports 28 inliers. What
+        happens to this frame, and what is the state afterwards?</li>
+    <li>Why does the octave window in <span class="mono">_search_last</span> depend on
+        <span class="mono">tz</span>, the forward component of the motion?</li>
+    <li>The car stops at a traffic light for 200 frames. Which keyframe condition prevents the map from
+        growing pointlessly, and which one would fire if a bus pulled up alongside?</li>
+  </ol>
+</div>
+
+<!-- ============================ 8 ============================ -->
+<h1 class="chapter" id="ch-solver">The optimizer, derived</h1>
+
+<p class="lead first">Both bundle adjustment problems in this system minimise the same thing: the
+disagreement between where map points <em>should</em> appear and where they were measured. This chapter
+derives it once, in the form the code implements.</p>
+
+<h2>The residual</h2>
+
+<p>For an observation of point <span class="v">X<sub>w</sub></span> in the camera with pose
+<span class="v">T<sub>cw</sub></span>, measured at the stereo keypoint
+<span class="v">z</span> = (<span class="v">u, v, u<sub>R</sub></span>):</p>
+
+<div class="eq"><span class="expr">
+  <span class="v">r</span> = π<sub>s</sub>(<span class="v">T<sub>cw</sub></span> <span class="v">X<sub>w</sub></span>) − <span class="v">z</span>
+  &nbsp;∈&nbsp; ℝ³
+</span><span class="num"></span></div>
+
+<p>and we minimise the weighted sum of squares over all observations, with a robust kernel ρ:</p>
+
+<div class="eq"><span class="expr">
+  min &nbsp; Σ<sub>k</sub> &nbsp; ρ( <span class="v">r<sub>k</sub></span><sup>T</sup> Σ<sub>k</sub><sup>−1</sup> <span class="v">r<sub>k</sub></span> )
+</span><span class="num"></span></div>
+
+<p>The information Σ<sup>−1</sup> is a scalar per observation: a keypoint found at octave
+<span class="v">l</span> is localised to about 1.2<sup><span class="v">l</span></sup> pixels, so its weight is
+1/1.2<sup>2<span class="v">l</span></sup>. A monocular keypoint — no stereo match — simply has its third
+residual row zeroed, which is how one code path serves both cases:</p>
+
+{{func:src/slam/optimize/solver.py:_project}}
+
+<h2>The Jacobians</h2>
+
+<p>Differentiating the projection with respect to the camera-frame point gives the 3 × 3 block visible in
+the listing above:</p>
+
+<div class="eq"><span class="expr">
+  <table class="frac"><tr><td>∂π<sub>s</sub></td></tr><tr><td>∂<span class="v">X<sub>c</sub></span></td></tr></table> =
+  <table class="mat">
+  <tr>
+    <td><table class="frac"><tr><td><span class="v">f<sub>x</sub></span></td></tr><tr><td><span class="v">Z</span></td></tr></table></td>
+    <td>0</td>
+    <td>−<table class="frac"><tr><td><span class="v">f<sub>x</sub>X</span></td></tr><tr><td><span class="v">Z</span>²</td></tr></table></td>
+  </tr>
+  <tr>
+    <td>0</td>
+    <td><table class="frac"><tr><td><span class="v">f<sub>y</sub></span></td></tr><tr><td><span class="v">Z</span></td></tr></table></td>
+    <td>−<table class="frac"><tr><td><span class="v">f<sub>y</sub>Y</span></td></tr><tr><td><span class="v">Z</span>²</td></tr></table></td>
+  </tr>
+  <tr>
+    <td><table class="frac"><tr><td><span class="v">f<sub>x</sub></span></td></tr><tr><td><span class="v">Z</span></td></tr></table></td>
+    <td>0</td>
+    <td>−<table class="frac"><tr><td><span class="v">f<sub>x</sub></span>(<span class="v">X</span>−<span class="v">b</span>)</td></tr><tr><td><span class="v">Z</span>²</td></tr></table></td>
+  </tr>
+  </table>
+</span><span class="num"></span></div>
+
+<p>For the pose we need the derivative of the point with respect to a left perturbation. Using
+exp(<span class="v">ξ</span>) ≈ <span class="v">I</span> + <span class="v">ξ</span><sup>∧</sup> for small
+<span class="v">ξ</span> = (<span class="v">ω, v</span>):</p>
+
+<div class="eq"><span class="expr">
+  exp(<span class="v">ξ</span><sup>∧</sup>) <span class="v">X<sub>c</sub></span> ≈
+  <span class="v">X<sub>c</sub></span> + <span class="v">ω</span> × <span class="v">X<sub>c</sub></span> + <span class="v">v</span>
+  &nbsp;⟹&nbsp;
+  ∂/∂<span class="v">ξ</span> = [ −[<span class="v">X<sub>c</sub></span>]<sub>×</sub> &nbsp;|&nbsp; <span class="v">I</span> ]
+</span><span class="num"></span></div>
+
+{{func:src/slam/optimize/solver.py:_dxi}}
+
+<p>and with respect to the point itself, ∂<span class="v">X<sub>c</sub></span>/∂<span class="v">X<sub>w</sub></span>
+= <span class="v">R</span>. Chaining gives the two Jacobian blocks the solver assembles:
+<span class="v">J<sub>pose</sub></span> = (∂π/∂<span class="v">X<sub>c</sub></span>)·[−[<span class="v">X<sub>c</sub></span>]<sub>×</sub> | <span class="v">I</span>]
+and <span class="v">J<sub>point</sub></span> = (∂π/∂<span class="v">X<sub>c</sub></span>)·<span class="v">R</span>.</p>
+
+<h2>Robustness: Huber and χ²</h2>
+
+<p>Wrong matches are inevitable, and a squared cost lets one bad match at 40 px dominate a hundred good ones
+at 1 px. The Huber kernel makes the cost linear beyond a threshold δ, which in iteratively reweighted least
+squares is just a per-observation weight δ/‖<span class="v">r</span>‖. The thresholds are the 95th percentile
+of a χ² distribution: 5.991 for a 2-DoF monocular residual, 7.815 for a 3-DoF stereo one.</p>
+
+{{func:src/slam/optimize/solver.py:_irls}}
+
+<h2>Motion-only BA</h2>
+
+<p>Points fixed, one pose free: six unknowns. Gauss–Newton on
+<span class="v">H</span> δ = −<span class="v">g</span> with
+<span class="v">H</span> = Σ <span class="v">J</span><sup>T</sup><span class="v">WJ</span> and
+<span class="v">g</span> = Σ <span class="v">J</span><sup>T</sup><span class="v">Wr</span>. The structure
+that matters is the outer loop: four rounds, and after each one every observation is re-tested against χ²,
+so an observation wrongly rejected early can come back once the pose has improved. The final round runs
+without the robust kernel, on inliers only.</p>
+
+{{func:src/slam/optimize/solver.py:motion_only_ba}}
+
+<h2>Local BA, and the Schur complement</h2>
+
+<p>Now both poses and points are free. With <span class="v">N</span> keyframes and <span class="v">P</span>
+points the system is (6<span class="v">N</span> + 3<span class="v">P</span>) square — for a typical local
+window, 20 poses and 5000 points, that is 15120 × 15120. Solving it directly is hopeless; exploiting its
+structure is easy. Write the normal equations in blocks:</p>
+
+<div class="eq"><span class="expr">
+  <table class="mat">
+    <tr><td><span class="v">H<sub>pp</sub></span></td><td><span class="v">H<sub>px</sub></span></td></tr>
+    <tr><td><span class="v">H<sub>px</sub></span><sup>T</sup></td><td><span class="v">H<sub>xx</sub></span></td></tr>
+  </table>
+  <table class="mat"><tr><td>δ<sub>p</sub></td></tr><tr><td>δ<sub>x</sub></td></tr></table>
+  = −
+  <table class="mat"><tr><td><span class="v">g<sub>p</sub></span></td></tr><tr><td><span class="v">g<sub>x</sub></span></td></tr></table>
+</span><span class="num"></span></div>
+
+<p>The key observation: <b><span class="v">H<sub>xx</sub></span> is block-diagonal with 3 × 3 blocks</b>,
+because no residual involves two different points. Inverting it costs nothing. Eliminating the points gives
+the <em>reduced camera system</em>, of size 6<span class="v">N</span> only:</p>
+
+<div class="eq"><span class="expr">
+  <span class="v">S</span> = <span class="v">H<sub>pp</sub></span> − <span class="v">H<sub>px</sub></span> <span class="v">H<sub>xx</sub></span><sup>−1</sup> <span class="v">H<sub>px</sub></span><sup>T</sup>,
+  &nbsp;&nbsp;
+  <span class="v">S</span> δ<sub>p</sub> = −<span class="v">g<sub>p</sub></span> + <span class="v">H<sub>px</sub></span> <span class="v">H<sub>xx</sub></span><sup>−1</sup> <span class="v">g<sub>x</sub></span>
+</span><span class="num"></span></div>
+
+<p>and the points follow by back-substitution:</p>
+
+<div class="eq"><span class="expr">
+  δ<sub>x</sub> = <span class="v">H<sub>xx</sub></span><sup>−1</sup> ( −<span class="v">g<sub>x</sub></span> − <span class="v">H<sub>px</sub></span><sup>T</sup> δ<sub>p</sub> )
+</span><span class="num"></span></div>
+
+<figure class="fig">
+<svg width="430" height="150" viewBox="0 0 430 150" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif" font-size="9">
+  <rect x="20" y="20" width="40" height="40" fill="#2a5fa6" opacity=".85"/>
+  <rect x="60" y="20" width="120" height="40" fill="#86b6ef" opacity=".85"/>
+  <rect x="20" y="60" width="40" height="70" fill="#86b6ef" opacity=".85"/>
+  <g fill="#c2542a" opacity=".9">
+    <rect x="60" y="60" width="12" height="12"/><rect x="72" y="72" width="12" height="12"/>
+    <rect x="84" y="84" width="12" height="12"/><rect x="96" y="96" width="12" height="12"/>
+    <rect x="108" y="108" width="12" height="12"/><rect x="120" y="118" width="12" height="12"/>
+    <rect x="132" y="118" width="12" height="12" opacity=".35"/><rect x="144" y="118" width="12" height="12" opacity=".2"/>
+  </g>
+  <text x="26" y="16" fill="#2a5fa6">H_pp (6N)</text>
+  <text x="110" y="16" fill="#4a5058">H_px</text>
+  <text x="170" y="76" fill="#c2542a">H_xx — block diagonal, 3×3 per point</text>
+  <text x="170" y="90" fill="#4a5058">invert it in one batched call</text>
+  <text x="240" y="30" fill="#14161a">S = H_pp − H_px H_xx⁻¹ H_pxᵀ</text>
+  <text x="240" y="44" fill="#4a5058">6N × 6N — this is what we solve</text>
+</svg>
+<figcaption>Why bundle adjustment is tractable. Points never couple to each other, so the big block is
+block-diagonal and can be eliminated, leaving a system the size of the poses alone.</figcaption>
+</figure>
+
+{{func:src/slam/optimize/solver.py:_schur_step}}
+
+<p>Around that step sits Levenberg–Marquardt. <span class="mono">bundle_adjust(poses, fixed, X, obs, cam,
+iters=(5, 10), stop=None)</span> takes the poses with a boolean mask saying which are held fixed, the points,
+the observations, and an optional abort callback so the tracker can interrupt a long solve. Its loop is the
+classic damped one — take the step, accept it if the cost went down and relax the damping, otherwise reject
+it and damp harder:</p>
+
+{{lines:src/slam/optimize/solver.py:198-226}}
+
+<p>Two stages, the first with the robust kernel and the second without; observations failing χ² after a
+stage are dropped for good. That is ORB-SLAM's structure exactly.</p>
+
+<div class="why">
+  <h4>Why this way</h4>
+  <p style="margin:0">Gauge freedom: shifting every pose and every point by the same rigid transform does not
+  change any residual, so the system is singular unless something is held still. In local BA the fixed set is
+  the keyframes that observe local points but are not themselves being optimised, plus keyframe 0. In the
+  loop-closure pose graph it is the matched keyframe. Forget this and the solver wanders.</p>
+</div>
+
+<div class="check">
+  <h4>Check yourself</h4>
+  <ol>
+    <li>Why is <span class="v">H<sub>xx</sub></span> block-diagonal? What would have to be true of the
+        residuals for it not to be?</li>
+    <li>What does the Huber weight do to an observation with a 40-pixel residual, and why is that better
+        than deleting it outright on the first iteration?</li>
+    <li>Local BA with 20 keyframes and 5000 points: what is the size of the matrix actually factorised?</li>
+  </ol>
+</div>
+
+<!-- ============================ 9 ============================ -->
+<h1 class="chapter" id="ch-mapping">Local mapping: growing and cleaning the map</h1>
+
+<p class="lead first">A keyframe arrives on a queue. This thread turns it into map structure, and it is
+where most of the compute goes — about 430 ms per keyframe, of which bundle adjustment is 252.</p>
+
+{{func:src/slam/mapping.py:process}}
+
+<h2>Cull recent points before trusting them</h2>
+
+<p>New points are guilty until proven useful. A point must be found in at least a quarter of the frames that
+predicted it, and reach three observations within two keyframes of its birth, or it is deleted:</p>
+
+{{func:src/slam/mapping.py:_cull_points}}
+
+<h2>Create new points by triangulation</h2>
+
+<p>Only unmatched keypoints are candidates, and only against covisible keyframes with enough baseline.
+Candidate pairs come from the vocabulary (same node), then the epipolar constraint decides geometry:
+a point in one image must lie on a line in the other, and the line is given by the fundamental matrix</p>
+
+<div class="eq"><span class="expr">
+  <span class="v">F</span><sub>12</sub> = <span class="v">K</span><sup>−T</sup> [<span class="v">t</span><sub>12</sub>]<sub>×</sub> <span class="v">R</span><sub>12</sub> <span class="v">K</span><sup>−1</sup>,
+  &nbsp;&nbsp; <span class="v">x</span><sub>1</sub><sup>T</sup> <span class="v">F</span><sub>12</sub> <span class="v">x</span><sub>2</sub> = 0
+</span><span class="num"></span></div>
+
+{{func:src/slam/mapping.py:_epipolar_matches}}
+
+<p>Surviving pairs are triangulated, but not blindly. The parallax between the two viewing rays is compared
+against the parallax the stereo rig alone would give; if the rig wins, the stereo unprojection is used
+instead of the two-view triangulation. Then the candidate must reproject within χ² in both keyframes, have
+positive depth in both, and be scale-consistent with the octaves it was seen at:</p>
+
+{{func:src/slam/mapping.py:_create_points}}
+
+<h2>Fuse duplicates</h2>
+
+<p>The same physical corner is often created twice, from two keyframes that did not yet share a link. Fusion
+projects each point into a neighbour and merges it with whatever is already at that keypoint, keeping the
+one with more observations:</p>
+
+{{func:src/slam/mapping.py:fuse}}
+
+<h2>Local bundle adjustment</h2>
+
+<p>The window is the new keyframe plus its covisible neighbours; every point they see is optimised with
+them; and keyframes that see those points but are outside the window are included as <em>fixed</em>
+constraints — they pull, but they do not move. That is what stops the local window from drifting away from
+the rest of the map.</p>
+
+{{func:src/slam/mapping.py:_local_ba}}
+
+<p>Note what happens around the solve: the problem is assembled under the map lock, the solve runs
+<em>without</em> it, and the write-back checks <span class="mono">map.version</span> and discards the result
+if a loop closure landed in the meantime. That is Chapter 11's subject.</p>
+
+<h2>Cull redundant keyframes</h2>
+
+<p>Finally, any keyframe whose close points are 90% visible in at least three other keyframes at the same or
+finer scale is redundant and gets removed. This is what keeps the map from growing linearly when the car
+stops at a light:</p>
+
+{{func:src/slam/mapping.py:_cull_keyframes}}
+
+<div class="check">
+  <h4>Check yourself</h4>
+  <ol>
+    <li>Why triangulate at all, when every close keypoint already has stereo depth?</li>
+    <li>A point is observed by two keyframes 10 cm apart, 60 m away. What does the parallax test do with it,
+        and why is that the right answer?</li>
+    <li>Which of the culling rules keeps memory bounded when the car is stationary?</li>
+  </ol>
+</div>
+
+<!-- ============================ 10 ============================ -->
+<h1 class="chapter" id="ch-loop">Loop closing: recognising a place and fixing the past</h1>
+
+<p class="lead first">After several kilometres the estimate has drifted by metres. When the car re-enters a
+street it mapped twenty minutes ago, the system should notice and pull the whole trajectory back into shape.
+Three things must happen: recognise the place, prove it geometrically, and distribute the correction.</p>
+
+<h2>Recognise: bag of words</h2>
+
+<p>Each descriptor is pushed down a vocabulary tree — ten children per node, six levels, trained offline on
+millions of ORB descriptors — and lands in a leaf, its <em>word</em>. A keyframe becomes a sparse vector of
+word counts weighted by inverse document frequency, L1-normalised:</p>
+
+{{func:src/slam/features/vocab.py:transform}}
+
+<p>Two keyframes are compared with the DBoW2 L1 score, which is 1 for identical vectors and 0 for vectors
+sharing nothing:</p>
+
+<div class="eq"><span class="expr">
+  <span class="v">s</span>(<span class="v">a</span>, <span class="v">b</span>) = 1 − ½ Σ<sub>i</sub> |<span class="v">a<sub>i</sub></span> − <span class="v">b<sub>i</sub></span>|
+  = ½ Σ<sub>i ∈ both</sub> ( |<span class="v">a<sub>i</sub></span>| + |<span class="v">b<sub>i</sub></span>| − |<span class="v">a<sub>i</sub></span> − <span class="v">b<sub>i</sub></span>| )
+</span><span class="num"></span></div>
+
+{{func:src/slam/features/vocab.py:score}}
+
+<p>Querying every keyframe would be linear in map size, so an inverted file maps each word to the keyframes
+containing it, and only keyframes sharing enough words are scored. Scores are then accumulated over
+covisible groups, so a place seen by a cluster of keyframes beats a single lucky match:</p>
+
+{{func:src/slam/loop.py:candidates}}
+
+<p>Appearance alone is not enough — brick walls repeat. A candidate must stay consistent across three
+consecutive keyframes before it is even considered:</p>
+
+{{func:src/slam/loop.py:_detect}}
+
+<h2>Prove: geometry</h2>
+
+<p>Both keyframes have 3-D points. Take matches between them, and find the rigid transform aligning the two
+point sets with Horn's closed-form solution inside a RANSAC loop; an inlier must reproject within χ² in
+<em>both</em> images. Twenty inliers are required.</p>
+
+{{func:src/slam/loop.py:_ransac_se3}}
+
+<p>That transform gives a corrected pose for the current keyframe. All points of the loop side are then
+projected into it to gather many more matches, and a final motion-only BA at that corrected pose must keep
+at least 40 inliers. Only then is the loop accepted:</p>
+
+{{func:src/slam/loop.py:_verify}}
+
+<h2>Fix: correct the neighbourhood, then the graph</h2>
+
+<p>The correction is applied in two stages. First locally and immediately: the current keyframe and its
+covisible neighbours are moved to the corrected pose, their points move with them, and duplicated points
+across the seam are fused. Then globally: an essential-graph pose-graph optimisation distributes the
+remaining error over the whole trajectory.</p>
+
+{{func:src/slam/loop.py:_correct}}
+
+<p>The pose graph minimises, over all keyframe poses, the disagreement of each edge with its measured
+relative pose:</p>
+
+<div class="eq"><span class="expr">
+  <span class="v">r<sub>ij</sub></span> = log( <span class="v">T̂<sub>ji</sub></span><sup>−1</sup> <span class="v">T<sub>j</sub></span> <span class="v">T<sub>i</sub></span><sup>−1</sup> ) ∈ ℝ⁶
+</span><span class="num"></span></div>
+
+<p>where <span class="v">T̂<sub>ji</sub></span> is what the relative pose was <em>before</em> the loop
+correction for ordinary edges, and the corrected value for the new loop links. Points are not in this
+optimisation at all — each one is carried along by its reference keyframe afterwards. That is what makes it
+fast enough to run on 1500 keyframes.</p>
+
+{{func:src/slam/loop.py:_optimize_essential_graph}}
+
+<div class="bug">
+  <h4>Bug story — the pose graph fighting its own correction</h4>
+  <p>Edges are deduplicated by keyframe pair. After fusion, the two sides of the loop are not only linked by
+  the new loop edges — they are now <em>strongly covisible</em>, so the ordinary covisibility rule proposes
+  the same pairs, measured with the old drifted poses. Whichever is inserted first wins.</p>
+  <p style="margin-bottom:0">Inserting covisibility edges first meant the pose graph was told &ldquo;these two
+  keyframes are 5 m apart&rdquo; by the drift and &ldquo;they are here, together&rdquo; by the loop, and it split the
+  difference. ATE 5.23 m. Inserting loop links first: <b>0.96 m</b>. Same code otherwise. ORB-SLAM inserts
+  loop connections first for exactly this reason — and that ordering is worth a comment in any
+  implementation, because nothing crashes when it is wrong.</p>
+</div>
+
+<div class="check">
+  <h4>Check yourself</h4>
+  <ol>
+    <li>Why require three consecutive consistent detections instead of trusting one high score?</li>
+    <li>Why is the matched (old) keyframe the fixed one in the pose graph, and not keyframe 0?</li>
+    <li>The loop closes. Why does the trajectory printed at the end of the run change for frames from twenty
+        minutes ago, even though those frames were never revisited?</li>
+  </ol>
+</div>
+
+<!-- ============================ 11 ============================ -->
+<h1 class="chapter" id="ch-threads">Three threads and one lock</h1>
+
+<p class="lead first">Tracking must keep up with the camera. Mapping cannot. That is the whole reason for the
+threading, and it is where more than half of this system's speed came from.</p>
+
+<p>Local mapping needs about 430 ms per keyframe and a keyframe arrives every three frames, so running it
+inline caps the system at roughly 1 fps. Moving it to a worker thread lets bundle adjustment — which is
+NumPy and SciPy, releasing the GIL for the large operations — overlap with the next frames' tracking. Same
+sequence, same work: <b>1.1 fps to 6.4 fps</b>.</p>
+
+<figure class="fig">
+  <img src="throughput.svg" alt="1.1 fps mapping inline versus 6.4 fps with worker threads">
+  <figcaption>Measured on the same 500 frames with identical settings.</figcaption>
+</figure>
+
+<p>Both workers share one small base class — a queue, a condition variable, and an inline mode that keeps
+tests deterministic. The worker loop is the whole of it:</p>
+
+{{func:src/slam/worker.py:_run}}
+
+<p>An exception inside <span class="mono">process</span> is printed rather than allowed to kill the thread:
+a dead mapping thread does not crash anything, it just silently stops the map growing, which is far harder
+to notice. In inline mode (<span class="mono">--sync</span>) the same queue is drained on the calling thread,
+so tests and debugging runs are deterministic.</p>
+
+<h2>What the lock protects</h2>
+
+<p>The map is a graph of Python objects mutated by three threads. The rules we hold to:</p>
+<ul class="tight">
+  <li>Tracking holds <span class="mono">map.lock</span> for its whole frame — it walks observation
+  dictionaries, and those must not change underneath it.</li>
+  <li>Local mapping holds it while mutating structure, releases it for the BA solve, and re-acquires it to
+  write results back.</li>
+  <li>Loop closing holds it for the entire correction, because a half-corrected map is not a map.</li>
+</ul>
+
+<div class="bug">
+  <h4>Bug story — bundle adjustment undoing a loop closure</h4>
+  <p style="margin-bottom:0">Because local BA deliberately releases the lock to solve, a loop correction can
+  land while it is solving. Its snapshot is then stale, and writing it back silently drags the just-corrected
+  keyframes back to where they were. The fix is a version counter on the map: loop correction bumps it, and
+  BA discards its result if the version changed. ORB-SLAM solves the same problem with an explicit
+  stop-request handshake; the counter is the smaller thing that cannot deadlock.</p>
+</div>
+
+<h2>Where the time actually goes</h2>
+
+<figure class="fig">
+  <img src="keyframe_cost.svg" alt="Per-keyframe cost breakdown">
+  <figcaption>Per keyframe, measured over 400 frames. Tracking itself is ~40 ms per frame and feature
+  extraction ~43 ms; the tracking thread stalls when it waits for the map lock.</figcaption>
+</figure>
+
+<p>Two optimisations were tried and <em>rejected</em> on measurement, which is worth as much as the two that
+were kept:</p>
+
+<table>
+  <thead><tr><th>Change</th><th>Result</th><th style="width:12%">Kept</th></tr></thead>
+  <tbody>
+    <tr><td>Mapping + loop closing on worker threads</td><td>1.1 → 6.4 fps</td><td>yes</td></tr>
+    <tr><td>Left/right ORB extraction in parallel</td><td>51 → 43 ms per frame</td><td>yes</td></tr>
+    <tr><td>Dense Schur complement instead of sparse</td><td>2408 → 2715 ms on real problems</td><td>no</td></tr>
+    <tr><td>Cap local BA at 12 covisible keyframes</td><td>no speed-up; ATE 1.73 → 3.33 m</td><td>no</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================ 12 ============================ -->
+<h1 class="chapter" id="ch-eval">Measuring it: ATE, RPE, and what the numbers mean</h1>
+
+<p class="lead first">Two metrics, answering different questions. Quote the right one for the question you
+are asked.</p>
+
+<h2>Absolute trajectory error</h2>
+
+<p>Align the estimated trajectory to ground truth with a single rigid transform — Horn again — then take the
+RMS distance between corresponding camera centres. It answers: <em>how far is the whole trajectory from the
+truth, as a shape?</em> It is dominated by the largest global deformation, which is exactly what loop closure
+fixes.</p>
+
+{{func:src/slam/eval.py:ate_rmse}}
+
+<h2>Relative pose error, KITTI style</h2>
+
+<p>Take every sub-path of length 100, 200, … 800 m, compare the relative motion over it with ground truth,
+and average. It answers: <em>how much does the system drift per unit distance?</em> A system with a perfect
+loop closure and terrible odometry can have good ATE and bad RPE.</p>
+
+{{func:src/slam/eval.py:kitti_rpe}}
+
+<h2>Our numbers</h2>
+
+<table>
+  <thead><tr><th>Metric</th><th class="num">This system</th><th class="num">ORB-SLAM2 (C++)</th></tr></thead>
+  <tbody>
+    <tr><td>ATE, KITTI 00</td><td class="num">1.73 m</td><td class="num">1.30 m</td></tr>
+    <tr><td>Translation drift</td><td class="num">0.88 %</td><td class="num">0.70 %</td></tr>
+    <tr><td>Rotation drift</td><td class="num">0.32 °/100 m</td><td class="num">0.25 °/100 m</td></tr>
+    <tr><td>Lost frames</td><td class="num">0</td><td class="num">—</td></tr>
+    <tr><td>Speed</td><td class="num">6 fps</td><td class="num">~30 fps</td></tr>
+  </tbody>
+</table>
+
+<figure class="fig">
+  <img src="comparison.svg" alt="KITTI 00 ATE against published systems">
+  <figcaption>Where this sits. We are behind ORB-SLAM2 — say so plainly — and ahead of published learned
+  monocular systems, which is largely because they are monocular and have no metric scale.</figcaption>
+</figure>
+
+<p class="small"><b>Be precise when you present this.</b> The honest claim is not &ldquo;we beat DROID-SLAM&rdquo;. It is:
+a stereo system implemented in NumPy lands in the classical-stereo accuracy band on a 3.7 km sequence, within
+33% of the C++ reference, and the learned monocular systems that publish KITTI 00 numbers are an order of
+magnitude behind on this sequence because scale is unobservable to them.</p>
+
+<!-- ============================ 13 ============================ -->
+<h1 class="chapter" id="ch-bugs">Three bugs worth knowing by heart</h1>
+
+<p class="lead first">These are the stories to tell when someone asks what you learned. Each one has a
+symptom, a wrong first hypothesis, and a method that found the real cause.</p>
+
+<h2>The dataset was not what it claimed to be</h2>
+
+<p><b>Symptom.</b> Tracking diverged around frame 40, every time, on every variant of the code.</p>
+<p><b>Wrong hypotheses, in order.</b> Bad local BA; bad triangulation; bad loop closure. All were disproved
+by ablation: the system diverged identically with local BA disabled, with triangulation disabled, and with
+fusion disabled.</p>
+<p><b>Method that worked.</b> Ask whether the <em>data</em> is consistent with itself. Estimate rotation
+between consecutive images using only the essential matrix — no depth, no map, nothing but the intrinsics —
+and compare with the rotation implied by the ground-truth poses. They disagreed by 2.7° per frame. Then
+correlate the image-derived yaw-rate profile against every ground-truth file in the dataset: frames 0–1100
+matched <em>sequence 01</em>, not sequence 00.</p>
+<p><b>Cause.</b> Half the images came from a mislabelled mirror of the dataset. Every "SLAM bug" for days was
+the system honestly tracking a different drive.</p>
+<p><b>Lesson, now encoded as a test.</b> <span class="mono">tests/test_kitti_integrity.py</span> verifies that
+image motion agrees with ground truth before any SLAM code is blamed.</p>
+
+<h2>Poses drifting off the manifold</h2>
+
+<p><b>Symptom.</b> After the data was fixed: smooth tracking for ~35 frames, then error growing geometrically
+— 0.07 m, 0.35 m, 0.75 m, 1.7 m, 4.3 m — with hundreds of healthy inliers the whole time.</p>
+<p><b>Method.</b> Instrument every boundary and ask which invariant breaks first. Measuring
+‖<span class="v">R</span><sup>T</sup><span class="v">R</span> − <span class="v">I</span>‖ per frame showed it
+tripling every frame from round-off at frame 5 to 5 × 10<sup>−2</sup> by frame 37.</p>
+<p><b>Cause and fix.</b> The feedback loop in Chapter 3: velocity as a twist, and orthonormalisation inside
+the estimators.</p>
+
+<h2>The pose graph fighting its own loop correction</h2>
+
+<p><b>Symptom.</b> Loop detection was correct — all closures at genuine revisits — yet ATE got
+<em>worse</em> after closing them (5.23 m), with 0.75 m steps at the loop seams.</p>
+<p><b>Method.</b> Separate detection from correction. Verify against ground truth that each detected pair
+really is the same place (it was, to within 5 m), then look at where in the trajectory the error entered:
+not at the loop, but spread over the older half of the map — a correction being distributed wrongly.</p>
+<p><b>Cause and fix.</b> Edge insertion order in the essential graph, Chapter 10. ATE 5.23 → 0.96 m.</p>
+
+<div class="why">
+  <h4>The transferable lesson</h4>
+  <p style="margin:0">All three were found the same way: form one hypothesis, design a measurement that can
+  <em>disprove</em> it, and only then change code. Ablations (turn one component off) and invariant checks
+  (measure something that must be true) beat reading code and guessing, every time.</p>
+</div>
+
+<!-- ============================ 14 ============================ -->
+<h1 class="chapter" id="ch-gaps">What is missing, and what I would build next</h1>
+
+<ul class="tight">
+  <li><b>Relocalization.</b> If tracking is lost, the system currently keeps predicting with the velocity
+  model. The right answer is the ORB-SLAM one: query the bag-of-words database for candidate keyframes and
+  solve PnP with RANSAC. The vocabulary and database are already here — this is perhaps 80 lines.</li>
+  <li><b>Atlas.</b> If relocalization fails for long enough, freeze the map and start a new one, then merge
+  when the two are recognised as the same place. This is ORB-SLAM3's main structural contribution.</li>
+  <li><b>Full BA after loop closure.</b> ORB-SLAM2 runs a global bundle adjustment on a fourth thread after
+  the pose graph. Our loop seams still show ~0.7 m steps, which is where that would help.</li>
+  <li><b>Speed.</b> At 6 fps the bottleneck is no longer feature extraction but the map lock — mapping holds
+  it ~175 ms per keyframe while tracking waits. Shortening those critical sections, or moving the hottest
+  Python loops into numba, is the next honest step toward real time.</li>
+  <li><b>Learned features.</b> SuperPoint + LightGlue behind the existing extractor/matcher interface;
+  published results put SuperPoint-based ORB-SLAM3 variants well ahead on hard lighting.</li>
+</ul>
+
+<!-- ============================ APPENDIX A ============================ -->
+<h1 class="chapter nonum" id="ap-files">Appendix A — file map</h1>
+
+<table>
+  <thead><tr><th style="width:32%">File</th><th>Responsibility</th></tr></thead>
+  <tbody>
+  <tr><td><span class="mono">data/frame.py</span></td><td>Frame container; <span class="mono">StereoCalib</span>: projection, unprojection, disparity→depth.</td></tr>
+  <tr><td><span class="mono">data/kitti.py</span></td><td>KITTI sequence reader: images, calibration, ground-truth poses.</td></tr>
+  <tr><td><span class="mono">geometry/lie.py</span></td><td>SO(3)/SE(3) exp, log, inverse, SO(3) projection.</td></tr>
+  <tr><td><span class="mono">geometry/align.py</span></td><td>Horn's closed-form rigid alignment.</td></tr>
+  <tr><td><span class="mono">geometry/triangulate.py</span></td><td>Batched DLT triangulation.</td></tr>
+  <tr><td><span class="mono">features/orb.py</span></td><td>ORB extraction, grid bucketing, stereo matching, SAD subpixel.</td></tr>
+  <tr><td><span class="mono">features/matcher.py</span></td><td>Hamming, ragged/window/node candidate generation, projection search, rotation check.</td></tr>
+  <tr><td><span class="mono">features/vocab.py</span></td><td>DBoW2 vocabulary: tree descent, TF-IDF, L1 score.</td></tr>
+  <tr><td><span class="mono">map/structure.py</span></td><td>MapPoint, KeyFrame, covisibility, spanning tree, Map, frustum test.</td></tr>
+  <tr><td><span class="mono">optimize/solver.py</span></td><td>Motion-only BA; sparse Schur-complement bundle adjustment.</td></tr>
+  <tr><td><span class="mono">optimize/pose_graph.py</span></td><td>Sparse SE(3) pose-graph optimisation.</td></tr>
+  <tr><td><span class="mono">tracking.py</span></td><td>Per-frame pose: predict, search, optimise, keyframe decision.</td></tr>
+  <tr><td><span class="mono">mapping.py</span></td><td>Local mapping thread: cull, triangulate, fuse, local BA, keyframe culling.</td></tr>
+  <tr><td><span class="mono">loop.py</span></td><td>Loop closing thread: BoW database, verification, correction, essential graph.</td></tr>
+  <tr><td><span class="mono">worker.py</span></td><td>Queue + thread base class shared by mapping and loop closing.</td></tr>
+  <tr><td><span class="mono">eval.py</span></td><td>ATE, KITTI RPE, KITTI-format trajectory output.</td></tr>
+  <tr><td><span class="mono">viz.py</span></td><td>Rerun logging: image, features, map, keyframes, trajectories.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================ APPENDIX B ============================ -->
+<h1 class="chapter nonum" id="ap-glossary">Appendix B — glossary</h1>
+
+<table>
+  <thead><tr><th style="width:26%">Term</th><th>Meaning</th></tr></thead>
+  <tbody>
+  <tr><td><b>ATE</b></td><td>Absolute trajectory error: RMS distance to ground truth after one rigid alignment.</td></tr>
+  <tr><td><b>Bag of words</b></td><td>An image summarised as a sparse histogram of quantised descriptors, for appearance-based place recognition.</td></tr>
+  <tr><td><b>Bundle adjustment</b></td><td>Joint non-linear least squares over camera poses and 3-D points, minimising reprojection error.</td></tr>
+  <tr><td><b>Covisibility graph</b></td><td>Keyframes linked when they observe the same points; weight = number shared.</td></tr>
+  <tr><td><b>Essential graph</b></td><td>Spanning tree + strong covisibility edges + loop edges; the sparse graph used for pose-graph optimisation.</td></tr>
+  <tr><td><b>Gauge freedom</b></td><td>The global transform to which the whole solution is invariant; removed by fixing at least one pose.</td></tr>
+  <tr><td><b>Huber kernel</b></td><td>Robust cost that grows linearly past a threshold, limiting the influence of outliers.</td></tr>
+  <tr><td><b>Keyframe</b></td><td>A frame kept permanently, carrying map structure; intermediate frames only localise.</td></tr>
+  <tr><td><b>Motion-only BA</b></td><td>Bundle adjustment with points fixed — solves for one camera pose.</td></tr>
+  <tr><td><b>Octave</b></td><td>Pyramid level a feature was detected at; sets its measurement uncertainty.</td></tr>
+  <tr><td><b>Parallax</b></td><td>Angle between the two rays seeing a point; small parallax means poorly determined depth.</td></tr>
+  <tr><td><b>RPE</b></td><td>Relative pose error: drift measured over fixed-length sub-paths.</td></tr>
+  <tr><td><b>Schur complement</b></td><td>Eliminating the point block of the normal equations to leave a system the size of the poses.</td></tr>
+  <tr><td><b>SE(3) / SO(3)</b></td><td>The groups of rigid motions / rotations in 3-D.</td></tr>
+  <tr><td><b>Twist</b></td><td>The six-vector (ω, v) parameterising a rigid motion in the Lie algebra.</td></tr>
+  </tbody>
+</table>
+
+<p class="small" style="margin-top:10mm">Built from the repository with
+<span class="mono">scripts/build_notes.py</span>; every code listing is extracted from
+<span class="mono">src/slam/</span> at build time.</p>
+
+</body>
+</html>
